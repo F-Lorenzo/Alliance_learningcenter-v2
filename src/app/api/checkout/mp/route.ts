@@ -18,6 +18,15 @@ const PLANS = {
 };
 
 export async function POST(request: Request) {
+  // Verificar que el token esté configurado
+  if (!process.env.MP_ACCESS_TOKEN) {
+    console.error("[checkout/mp] MP_ACCESS_TOKEN no configurado");
+    return NextResponse.json(
+      { error: "Configuración de pagos incompleta" },
+      { status: 500 }
+    );
+  }
+
   try {
     // 1. Verificar sesión
     const supabase = await createClient();
@@ -36,18 +45,23 @@ export async function POST(request: Request) {
 
     // 3. Crear suscripción en MP
     const client = new MercadoPagoConfig({
-      accessToken: process.env.MP_ACCESS_TOKEN!,
+      accessToken: process.env.MP_ACCESS_TOKEN,
     });
 
     const preApproval = new PreApproval(client);
 
-    const origin = request.headers.get("origin") ?? process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+    // Usar el origin del request, o la URL del sitio configurada, o localhost
+    const origin =
+      request.headers.get("origin") ??
+      process.env.NEXT_PUBLIC_SITE_URL ??
+      "http://localhost:3000";
 
     const result = await preApproval.create({
       body: {
         reason: plan.reason,
         external_reference: user.id,
-        payer_email: user.email!,
+        // payer_email es opcional — MP lo pide en el checkout si no viene
+        ...(user.email ? { payer_email: user.email } : {}),
         back_url: `${origin}/planes/exito`,
         auto_recurring: {
           frequency: plan.frequency,
@@ -58,9 +72,20 @@ export async function POST(request: Request) {
       },
     });
 
+    if (!result.init_point) {
+      throw new Error("MP no devolvió init_point");
+    }
+
     return NextResponse.json({ init_point: result.init_point });
-  } catch (err) {
-    console.error("[checkout/mp]", err);
-    return NextResponse.json({ error: "Error al crear la suscripción" }, { status: 500 });
+  } catch (err: unknown) {
+    // Loguear el error completo en Vercel Functions logs
+    const message = err instanceof Error ? err.message : String(err);
+    const cause = (err as { cause?: unknown })?.cause;
+    console.error("[checkout/mp] Error:", message, cause ?? "");
+
+    return NextResponse.json(
+      { error: `Error MP: ${message}` },
+      { status: 500 }
+    );
   }
 }
