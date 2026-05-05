@@ -2,6 +2,8 @@ import { Check } from "lucide-react";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { CheckoutButton } from "@/components/checkout-button";
+import { getCurrentUser } from "@/lib/queries";
+import { logout } from "@/app/actions";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -37,10 +39,13 @@ const PLAN_YEARLY = {
   savings: "Equivale a $8.000/mes",
 };
 
-export default function PlanesPage() {
+export default async function PlanesPage() {
+  const user = await getCurrentUser();
+  const navUser = user ? { name: user.name, email: user.email } : null;
+
   return (
     <>
-      <Navbar user={null} />
+      <Navbar user={navUser} onLogout={logout} />
       <main className="flex-1 pt-24 pb-20 px-6">
         <div className="max-w-4xl mx-auto">
           {/* Header */}
