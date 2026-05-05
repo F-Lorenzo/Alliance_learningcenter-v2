@@ -30,16 +30,20 @@ export async function getAdminUsers() {
 
   const { data: profiles } = await db
     .from("profiles")
-    .select("id, full_name, is_admin, created_at")
+    .select("id, full_name, created_at")
     .order("created_at", { ascending: false });
 
   if (!profiles?.length) return [];
 
-  // Obtener emails desde auth.users usando service role
+  // Emails desde auth
   const { data: authUsers } = await db.auth.admin.listUsers({ perPage: 1000 });
   const emailMap = new Map(authUsers?.users?.map((u) => [u.id, u.email]) ?? []);
 
-  // Obtener suscripciones activas
+  // Admins desde tabla admins (sin recursión)
+  const { data: adminRows } = await db.from("admins").select("user_id");
+  const adminSet = new Set(adminRows?.map((a) => a.user_id as string) ?? []);
+
+  // Suscripciones
   const { data: subs } = await db
     .from("subscriptions")
     .select("user_id, status, plan, current_period_end")
@@ -50,7 +54,7 @@ export async function getAdminUsers() {
     id: p.id as string,
     full_name: (p.full_name as string | null) ?? "—",
     email: emailMap.get(p.id as string) ?? "—",
-    is_admin: p.is_admin as boolean,
+    is_admin: adminSet.has(p.id as string),
     created_at: p.created_at as string,
     subscription: subMap.get(p.id as string) ?? null,
   }));

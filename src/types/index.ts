@@ -22,7 +22,8 @@ export interface Lesson {
   title: string;
   duration: number; // segundos
   is_free: boolean;
-  order: number;
+  sort_order: number;
+  video_url?: string | null;
 }
 
 export interface Instructor {

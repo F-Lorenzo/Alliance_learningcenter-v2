@@ -29,7 +29,8 @@ function transformCourse(row: Record<string, unknown>): Course {
             title: l.title as string,
             duration: (l.duration as number) ?? 0,
             is_free: l.is_free as boolean,
-            order: l.sort_order as number,
+            sort_order: l.sort_order as number,
+            video_url: (l.video_url as string | null) ?? null,
           } satisfies Lesson))
       : undefined,
   };

@@ -48,14 +48,14 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    // Verificar is_admin en el perfil (el usuario puede leer su propio perfil)
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("is_admin")
-      .eq("id", user.id)
+    // Verificar en tabla admins (sin recursión RLS)
+    const { data: adminRecord } = await supabase
+      .from("admins")
+      .select("user_id")
+      .eq("user_id", user.id)
       .maybeSingle();
 
-    if (!profile?.is_admin) {
+    if (!adminRecord) {
       const url = request.nextUrl.clone();
       url.pathname = "/dashboard";
       return NextResponse.redirect(url);

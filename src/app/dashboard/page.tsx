@@ -21,18 +21,6 @@ const SUBSCRIPTION_LABELS: Record<string, { label: string; color: string }> = {
   inactive: { label: "Sin suscripción", color: "bg-bg-tertiary text-text-tertiary" },
 };
 
-// Mock: progreso por categoría (placeholder hasta tener datos reales)
-const MOCK_CATEGORY_PROGRESS = [
-  { name: "Guardia", progress: 0 },
-  { name: "Pasajes", progress: 0 },
-  { name: "Escapes", progress: 0 },
-  { name: "Espalda", progress: 0 },
-  { name: "Controles", progress: 0 },
-  { name: "Derribos", progress: 0 },
-];
-
-const BEGINNER_COMPLETED = 0;
-const BEGINNER_TOTAL = 12;
 
 function fmt(s: number) {
   const m = Math.floor(s / 60);
@@ -147,63 +135,6 @@ export default async function DashboardPage() {
             </section>
           )}
 
-          {/* Ruta del principiante */}
-          <section className="mx-6 my-6 bg-bg-secondary rounded-xl p-6 border border-border-default bg-gradient-to-r from-gold/5 to-transparent">
-            <div className="flex justify-between items-start gap-4">
-              <div>
-                <p className="text-[11px] uppercase tracking-[3px] text-gold mb-2">TU RUTA</p>
-                <h2 className="text-lg font-medium text-text-primary">Ruta del principiante</h2>
-                <p className="text-sm text-text-secondary mt-1">
-                  Los {BEGINNER_TOTAL} fundamentos que todo alumno Alliance debería dominar
-                </p>
-              </div>
-              <span className="text-sm text-text-secondary shrink-0">
-                {BEGINNER_COMPLETED} de {BEGINNER_TOTAL} completados
-              </span>
-            </div>
-
-            <div className="flex gap-1.5 mt-5">
-              {Array.from({ length: BEGINNER_TOTAL }).map((_, i) => (
-                <div
-                  key={i}
-                  className={cn("flex-1 h-[6px] rounded-full", i < BEGINNER_COMPLETED ? "bg-gold" : "bg-bg-tertiary")}
-                />
-              ))}
-            </div>
-
-            <div className="flex justify-between items-center mt-4">
-              <p className="text-sm text-text-secondary">
-                Comenzá con los <span className="text-text-primary font-medium">fundamentos</span>
-              </p>
-              <Link href="/modulos">
-                <Button variant="primary" size="sm">Empezar ruta</Button>
-              </Link>
-            </div>
-          </section>
-
-          {/* Progreso por posición */}
-          <section className="px-6 py-6 border-b border-border-default">
-            <SectionHeader label="MI PROGRESO POR POSICIÓN" />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-5 mt-5">
-              {MOCK_CATEGORY_PROGRESS.map(({ name, progress }) => (
-                <div key={name} className="flex flex-col gap-1.5">
-                  <div className="flex justify-between">
-                    <span className="text-sm font-medium text-text-primary">{name}</span>
-                    <span className="text-xs text-text-secondary font-mono">{progress}%</span>
-                  </div>
-                  <div className="h-1 bg-bg-tertiary rounded-full overflow-hidden">
-                    <div
-                      className={cn(
-                        "h-full rounded-full transition-all",
-                        progress === 100 ? "bg-success" : "bg-gold"
-                      )}
-                      style={{ width: `${progress}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
 
           {/* Novedades */}
           <section className="px-6 py-6">

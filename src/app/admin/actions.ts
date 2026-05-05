@@ -171,9 +171,10 @@ export async function deleteLesson(lessonId: string, courseId: string) {
 
 export async function toggleAdminRole(userId: string, current: boolean) {
   const db = createAdminClient();
-  await db
-    .from("profiles")
-    .update({ is_admin: !current })
-    .eq("id", userId);
+  if (current) {
+    await db.from("admins").delete().eq("user_id", userId);
+  } else {
+    await db.from("admins").insert({ user_id: userId });
+  }
   revalidatePath("/admin/usuarios");
 }
