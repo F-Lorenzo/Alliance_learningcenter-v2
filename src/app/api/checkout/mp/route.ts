@@ -62,6 +62,7 @@ export async function POST(request: Request) {
       body: {
         reason: plan.reason,
         external_reference: user.id,
+        payer_email: user.email!,
         back_url: `${origin}/planes/exito`,
         auto_recurring: {
           frequency: plan.frequency,
