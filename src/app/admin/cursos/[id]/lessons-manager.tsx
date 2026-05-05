@@ -77,7 +77,7 @@ function NewLessonForm({
     <form onSubmit={handleSubmit} className="bg-bg-primary border border-gold/30 rounded-lg p-4 flex flex-col gap-3">
       <p className="text-xs font-medium text-gold uppercase tracking-wider">Nueva lección</p>
       <LessonField label="Título *" name="title" placeholder="Ej: Grip inicial y posición base" required />
-      <LessonField label="URL del video" name="video_url" placeholder="https://..." />
+      <LessonField label="Video (key en R2)" name="video_url" placeholder="ej: clase-guardia-1.mp4" />
       <LessonField label="Duración (segundos)" name="duration" type="number" placeholder="600" />
       <LessonField label="Orden" name="sort_order" type="number" defaultValue="1" />
       <label className="flex items-center gap-2 cursor-pointer">
@@ -126,7 +126,7 @@ function EditLessonForm({
   return (
     <form onSubmit={handleSubmit} className="bg-bg-primary border border-gold/20 rounded-lg p-4 flex flex-col gap-3">
       <LessonField label="Título *" name="title" defaultValue={lesson.title} required />
-      <LessonField label="URL del video" name="video_url" defaultValue={lesson.video_url ?? ""} placeholder="https://..." />
+      <LessonField label="Video (key en R2)" name="video_url" defaultValue={lesson.video_url ?? ""} placeholder="ej: clase-guardia-1.mp4" />
       <div className="grid grid-cols-2 gap-3">
         <LessonField label="Duración (seg)" name="duration" type="number" defaultValue={lesson.duration} />
         <LessonField label="Orden" name="sort_order" type="number" defaultValue={lesson.sort_order} />

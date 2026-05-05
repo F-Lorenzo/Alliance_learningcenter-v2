@@ -137,6 +137,30 @@ export async function getSubscription(userId: string) {
   return data as { status: string; plan: string; current_period_end: string | null } | null;
 }
 
+export async function getLessonWithCourse(courseSlug: string, lessonSlug: string) {
+  const supabase = await createClient();
+
+  // Traer el curso con todas sus lecciones (para el sidebar)
+  const { data: course } = await supabase
+    .from("courses")
+    .select("id, slug, title, lessons(id, slug, title, duration, is_free, sort_order, video_url)")
+    .eq("slug", courseSlug)
+    .eq("is_published", true)
+    .maybeSingle();
+
+  if (!course) return null;
+
+  const lessons = (course.lessons as Array<{
+    id: string; slug: string; title: string; duration: number;
+    is_free: boolean; sort_order: number; video_url: string | null;
+  }>).sort((a, b) => a.sort_order - b.sort_order);
+
+  const lesson = lessons.find((l) => l.slug === lessonSlug) ?? null;
+  if (!lesson) return null;
+
+  return { course, lessons, lesson };
+}
+
 export async function getRecentProgress(userId: string) {
   const supabase = await createClient();
   const { data } = await supabase

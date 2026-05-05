@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   Play, Pause, Volume2, VolumeX, Maximize,
-  ChevronLeft, ChevronRight, CheckCircle, Circle, RotateCcw, RotateCw,
+  ChevronLeft, ChevronRight, CheckCircle, Circle, RotateCcw, RotateCw, Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -15,14 +15,8 @@ interface Lesson {
   title: string;
   duration: number;
   is_free: boolean;
-  order: number;
-}
-
-interface Note {
-  id: string;
-  text: string;
-  timestamp: number;
-  createdAt: string;
+  sort_order: number;
+  video_url?: string | null;
 }
 
 interface VideoPlayerProps {
@@ -42,19 +36,40 @@ function fmt(s: number) {
 
 export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, userEmail }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [signedUrl, setSignedUrl] = useState<string | null>(null);
+  const [loadingUrl, setLoadingUrl] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(lesson.duration);
+  const [duration, setDuration] = useState(lesson.duration || 0);
   const [muted, setMuted] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [showControls, setShowControls] = useState(true);
   const [activeTab, setActiveTab] = useState<"content" | "notes">("content");
   const [noteText, setNoteText] = useState("");
-  const [notes, setNotes] = useState<Note[]>([]);
+  const [notes, setNotes] = useState<{ id: string; text: string; timestamp: number; createdAt: string }[]>([]);
   const [completed, setCompleted] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [watermarkPos, setWatermarkPos] = useState({ top: "10%", right: "2%" });
   const controlsTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Obtener URL firmada de R2 al montar
+  useEffect(() => {
+    if (!lesson.video_url) return;
+    setLoadingUrl(true);
+    setSignedUrl(null);
+    fetch(`/api/videos/signed-url?key=${encodeURIComponent(lesson.video_url)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.url) setSignedUrl(data.url);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingUrl(false));
+  }, [lesson.video_url]);
+
+  // Sincronizar velocidad
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.playbackRate = speed;
+  }, [speed]);
 
   // Auto-hide controles
   const resetControlsTimer = useCallback(() => {
@@ -98,20 +113,26 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
     if (!videoRef.current) return;
     const t = videoRef.current.currentTime;
     setCurrentTime(t);
-    if (!completed && t / duration >= 0.9) {
+    if (!completed && duration > 0 && t / duration >= 0.9) {
       setCompleted(true);
-      // TODO: POST /api/progress { lesson_id, completed: true }
+    }
+  }
+
+  function handleLoadedMetadata() {
+    if (videoRef.current) {
+      setDuration(videoRef.current.duration);
     }
   }
 
   function handleEnded() {
+    setPlaying(false);
     if (nextLesson) {
       let c = 5;
       setCountdown(c);
       const interval = setInterval(() => {
         c--;
         setCountdown(c);
-        if (c <= 0) { clearInterval(interval); /* navigate */ }
+        if (c <= 0) clearInterval(interval);
       }, 1000);
     }
   }
@@ -135,26 +156,51 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
       >
         {/* Video */}
         <div className="flex-1 relative">
-          {/* Placeholder mientras no hay video real */}
-          <div className="absolute inset-0 flex items-center justify-center bg-black">
-            <div className="text-center">
-              <div
-                className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center border border-white/20 cursor-pointer mx-auto hover:bg-white/20 transition-colors"
-                onClick={togglePlay}
-              >
-                {playing
-                  ? <Pause className="w-8 h-8 text-white" />
-                  : <Play className="w-8 h-8 text-white fill-white translate-x-0.5" />
-                }
+          {signedUrl ? (
+            <video
+              ref={videoRef}
+              src={signedUrl}
+              className="absolute inset-0 w-full h-full object-contain"
+              muted={muted}
+              onTimeUpdate={handleTimeUpdate}
+              onLoadedMetadata={handleLoadedMetadata}
+              onEnded={handleEnded}
+              onPlay={() => setPlaying(true)}
+              onPause={() => setPlaying(false)}
+              onClick={togglePlay}
+              playsInline
+              controlsList="nodownload"
+              onContextMenu={(e) => e.preventDefault()}
+            />
+          ) : (
+            /* Placeholder cuando no hay video */
+            <div className="absolute inset-0 flex items-center justify-center bg-black">
+              <div className="text-center">
+                {loadingUrl ? (
+                  <Loader2 className="w-10 h-10 text-white/40 animate-spin mx-auto" />
+                ) : (
+                  <>
+                    <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center border border-white/20 cursor-pointer mx-auto hover:bg-white/20 transition-colors"
+                      onClick={togglePlay}>
+                      {playing
+                        ? <Pause className="w-8 h-8 text-white" />
+                        : <Play className="w-8 h-8 text-white fill-white translate-x-0.5" />
+                      }
+                    </div>
+                    <p className="text-white/40 text-sm mt-4">{lesson.title}</p>
+                    {!lesson.video_url && (
+                      <p className="text-white/20 text-xs mt-2">Video no disponible</p>
+                    )}
+                  </>
+                )}
               </div>
-              <p className="text-white/40 text-sm mt-4">{lesson.title}</p>
             </div>
-          </div>
+          )}
 
           {/* Watermark anti-piratería */}
           {userEmail && (
             <div
-              className="absolute text-white/10 text-xs font-mono pointer-events-none select-none transition-all duration-1000"
+              className="absolute text-white/10 text-xs font-mono pointer-events-none select-none transition-all duration-1000 z-10"
               style={watermarkPos}
             >
               {userEmail}
@@ -162,60 +208,65 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
           )}
 
           {/* Controles overlay */}
-          <div className={cn(
-            "absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-4 transition-opacity duration-300",
-            showControls ? "opacity-100" : "opacity-0"
-          )}>
-            {/* Progress bar */}
-            <input
-              type="range"
-              min={0}
-              max={duration}
-              value={currentTime}
-              onChange={handleProgress}
-              className="w-full h-1.5 mb-3 accent-gold cursor-pointer"
-            />
-
-            <div className="flex justify-between items-center">
-              {/* Izquierda */}
-              <div className="flex items-center gap-4">
-                <button onClick={togglePlay} className="text-white hover:text-gold transition-colors">
-                  {playing ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 fill-white" />}
-                </button>
-                <button onClick={() => seek(-10)} className="text-white/70 hover:text-white transition-colors">
-                  <RotateCcw className="w-4 h-4" />
-                </button>
-                <button onClick={() => seek(10)} className="text-white/70 hover:text-white transition-colors">
-                  <RotateCw className="w-4 h-4" />
-                </button>
-                <button onClick={() => setMuted((v) => !v)} className="text-white/70 hover:text-white transition-colors">
-                  {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-                </button>
-                <span className="text-sm font-mono text-white/70">
-                  {fmt(currentTime)} / {fmt(duration)}
-                </span>
-              </div>
-              {/* Derecha */}
-              <div className="flex items-center gap-4">
-                <select
-                  value={speed}
-                  onChange={(e) => setSpeed(Number(e.target.value))}
-                  className="bg-transparent text-white/70 text-sm border-none outline-none cursor-pointer"
-                >
-                  {[0.5, 0.75, 1, 1.25, 1.5, 2].map((s) => (
-                    <option key={s} value={s} className="bg-black">{s}x</option>
-                  ))}
-                </select>
-                <button className="text-white/70 hover:text-white transition-colors">
-                  <Maximize className="w-4 h-4" />
-                </button>
+          {signedUrl && (
+            <div className={cn(
+              "absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-4 transition-opacity duration-300 z-10",
+              showControls ? "opacity-100" : "opacity-0"
+            )}>
+              <input
+                type="range"
+                min={0}
+                max={duration || 100}
+                value={currentTime}
+                onChange={handleProgress}
+                className="w-full h-1.5 mb-3 accent-gold cursor-pointer"
+              />
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-4">
+                  <button onClick={togglePlay} className="text-white hover:text-gold transition-colors">
+                    {playing ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 fill-white" />}
+                  </button>
+                  <button onClick={() => seek(-10)} className="text-white/70 hover:text-white transition-colors">
+                    <RotateCcw className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => seek(10)} className="text-white/70 hover:text-white transition-colors">
+                    <RotateCw className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => setMuted((v) => !v)} className="text-white/70 hover:text-white transition-colors">
+                    {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                  </button>
+                  <span className="text-sm font-mono text-white/70">
+                    {fmt(currentTime)} / {fmt(duration)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-4">
+                  <select
+                    value={speed}
+                    onChange={(e) => {
+                      const s = Number(e.target.value);
+                      setSpeed(s);
+                      if (videoRef.current) videoRef.current.playbackRate = s;
+                    }}
+                    className="bg-transparent text-white/70 text-sm border-none outline-none cursor-pointer"
+                  >
+                    {[0.5, 0.75, 1, 1.25, 1.5, 2].map((s) => (
+                      <option key={s} value={s} className="bg-black">{s}x</option>
+                    ))}
+                  </select>
+                  <button
+                    className="text-white/70 hover:text-white transition-colors"
+                    onClick={() => videoRef.current?.requestFullscreen()}
+                  >
+                    <Maximize className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Countdown auto-next */}
           {countdown !== null && nextLesson && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+            <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-20">
               <div className="text-center">
                 <p className="text-white text-lg font-medium mb-2">Siguiente técnica en {countdown}…</p>
                 <p className="text-white/60 text-sm mb-6">{nextLesson.title}</p>
@@ -235,7 +286,7 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
         {/* Debajo del player */}
         <div className="p-6 border-t border-border-default bg-bg-primary">
           <h1 className="text-xl font-medium text-text-primary">{lesson.title}</h1>
-          <p className="text-sm text-text-secondary mt-1">Módulo: Sistema de técnicas</p>
+          <p className="text-sm text-text-secondary mt-1">Duración: {fmt(duration)}</p>
 
           <div className="flex justify-between items-center mt-6">
             {prevLesson ? (
@@ -258,7 +309,6 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
 
       {/* Sidebar derecha */}
       <aside className="w-[360px] shrink-0 border-l border-border-default flex flex-col bg-bg-primary overflow-hidden hidden lg:flex">
-        {/* Tabs */}
         <div className="flex border-b border-border-default">
           {(["content", "notes"] as const).map((tab) => (
             <button
@@ -279,15 +329,13 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
         {activeTab === "content" ? (
           <div className="flex flex-col overflow-hidden">
             <div className="px-4 py-3 border-b border-border-default">
-              <p className="text-sm font-medium text-text-primary">Sistema de técnicas</p>
-              <p className="text-xs text-text-secondary mt-0.5">
-                {lessons.filter((_, i) => i < lesson.order - 1).length}/{lessons.length} técnicas completadas
-              </p>
+              <p className="text-sm font-medium text-text-primary">Técnicas del módulo</p>
+              <p className="text-xs text-text-secondary mt-0.5">{lessons.length} técnicas</p>
             </div>
             <div className="overflow-y-auto flex-1">
               {lessons.map((l) => {
                 const isCurrent = l.id === lesson.id;
-                const isCompleted = l.order < lesson.order;
+                const isCompleted = l.sort_order < lesson.sort_order;
                 return (
                   <Link
                     key={l.id}
@@ -298,7 +346,7 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
                     )}
                   >
                     <span className="text-xs font-mono text-text-tertiary w-6 shrink-0">
-                      {String(l.order).padStart(2, "0")}
+                      {String(l.sort_order).padStart(2, "0")}
                     </span>
                     {isCompleted ? (
                       <CheckCircle className="w-3.5 h-3.5 text-success shrink-0" />
@@ -323,7 +371,6 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
           </div>
         ) : (
           <div className="flex flex-col overflow-hidden flex-1">
-            {/* Input nueva nota */}
             <div className="px-4 py-3 border-b border-border-default">
               <p className="text-sm font-medium text-text-primary mb-3">Notas de esta técnica</p>
               <textarea
@@ -340,8 +387,6 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
                 </Button>
               </div>
             </div>
-
-            {/* Lista de notas */}
             <div className="overflow-y-auto flex-1">
               {notes.length === 0 ? (
                 <div className="px-4 py-8 text-center">
