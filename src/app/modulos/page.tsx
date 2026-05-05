@@ -1,7 +1,8 @@
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { CatalogView } from "@/components/catalog-view";
-import { MOCK_ALL_COURSES } from "@/lib/mock-data";
+import { getCourses, getCurrentUser } from "@/lib/queries";
+import { logout } from "@/app/actions";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -9,12 +10,17 @@ export const metadata: Metadata = {
   description: "Explorá todos los módulos de jiu jitsu de Alliance Learning Center.",
 };
 
-export default function ModulosPage() {
+export default async function ModulosPage() {
+  const [courses, user] = await Promise.all([getCourses(), getCurrentUser()]);
+
+  const navUser = user ? { name: user.name, email: user.email } : null;
+  const isLoggedIn = !!user;
+
   return (
     <>
-      <Navbar user={null} />
+      <Navbar user={navUser} onLogout={logout} />
       <main className="flex-1 pb-20">
-        <CatalogView courses={MOCK_ALL_COURSES} isLoggedIn={false} />
+        <CatalogView courses={courses} isLoggedIn={isLoggedIn} />
       </main>
       <Footer />
     </>

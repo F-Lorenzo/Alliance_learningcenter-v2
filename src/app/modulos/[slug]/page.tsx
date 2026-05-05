@@ -5,19 +5,9 @@ import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { Button } from "@/components/ui/button";
 import { formatMinutes, formatDuration } from "@/lib/utils";
-import { MOCK_ALL_COURSES, MOCK_INSTRUCTORS } from "@/lib/mock-data";
-import type { Lesson } from "@/types";
+import { getCourseBySlug, getCurrentUser, getSubscription } from "@/lib/queries";
+import { logout } from "@/app/actions";
 import type { Metadata } from "next";
-
-// Datos mock de técnicas para el módulo
-const MOCK_LESSONS: Lesson[] = [
-  { id: "l1", slug: "introduccion", title: "Introducción y conceptos base", duration: 480, is_free: true, order: 1 },
-  { id: "l2", slug: "posicion-inicial", title: "Posición inicial y grips", duration: 620, is_free: true, order: 2 },
-  { id: "l3", slug: "tecnica-1", title: "Primera variante de ataque", duration: 540, is_free: false, order: 3 },
-  { id: "l4", slug: "tecnica-2", title: "Segunda variante — contra defensa pasiva", duration: 710, is_free: false, order: 4 },
-  { id: "l5", slug: "transicion-espalda", title: "Transición a la espalda", duration: 590, is_free: false, order: 5 },
-  { id: "l6", slug: "drill-de-practica", title: "Drill de práctica en vivo", duration: 480, is_free: false, order: 6 },
-];
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -25,25 +15,39 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const course = MOCK_ALL_COURSES.find((c) => c.slug === slug);
+  const course = await getCourseBySlug(slug);
   if (!course) return { title: "Módulo no encontrado" };
   return { title: course.title, description: course.description };
 }
 
 export default async function ModuloPage({ params }: Props) {
   const { slug } = await params;
-  const course = MOCK_ALL_COURSES.find((c) => c.slug === slug);
+
+  const [course, user] = await Promise.all([
+    getCourseBySlug(slug),
+    getCurrentUser(),
+  ]);
+
   if (!course) notFound();
 
-  const isLoggedIn = false;
-  const isSubscribed = false;
-  const hasProgress = false;
-  const instructor = MOCK_INSTRUCTORS[0];
-  const lessons = course.lessons?.length ? MOCK_LESSONS : [];
+  let isSubscribed = false;
+  if (user) {
+    const sub = await getSubscription(user.id);
+    isSubscribed =
+      !!sub &&
+      (sub.status === "active" || sub.status === "trialing") &&
+      !!sub.current_period_end &&
+      new Date(sub.current_period_end) > new Date();
+  }
+
+  const navUser = user ? { name: user.name, email: user.email } : null;
+  const lessons = course.lessons ?? [];
+  const instructor = course.instructor;
+  const hasProgress = false; // TODO: query progress table
 
   return (
     <>
-      <Navbar user={null} />
+      <Navbar user={navUser} onLogout={logout} />
       <main className="flex-1 pt-20 pb-16">
         <div className="max-w-5xl mx-auto px-6">
 
@@ -99,10 +103,12 @@ export default async function ModuloPage({ params }: Props) {
                   <PlayCircle className="w-4 h-4" />
                   {lessons.length} técnicas
                 </span>
-                <span className="flex items-center gap-1.5">
-                  <User className="w-4 h-4" />
-                  {instructor.name}
-                </span>
+                {instructor && (
+                  <span className="flex items-center gap-1.5">
+                    <User className="w-4 h-4" />
+                    {instructor.name}
+                  </span>
+                )}
               </div>
 
               {/* CTA */}
@@ -130,6 +136,10 @@ export default async function ModuloPage({ params }: Props) {
 
             {/* Columna derecha: thumbnail / trailer */}
             <div className="aspect-video rounded-xl overflow-hidden relative bg-bg-tertiary lg:sticky lg:top-24">
+              {course.thumbnail_url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={course.thumbnail_url} alt={course.title} className="w-full h-full object-cover" />
+              )}
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center border border-white/20 backdrop-blur-sm">
                   <Play className="w-7 h-7 text-white fill-white translate-x-0.5" />
@@ -174,10 +184,10 @@ export default async function ModuloPage({ params }: Props) {
                             GRATIS
                           </span>
                         )}
-                        {!lesson.is_free && !isSubscribed && (
+                        {!lesson.is_free && !canWatch && (
                           <Lock className="w-4 h-4 text-text-tertiary" />
                         )}
-                        {!lesson.is_free && isSubscribed && (
+                        {!lesson.is_free && canWatch && (
                           <CheckCircle className="w-4 h-4 text-text-tertiary" />
                         )}
                       </div>
@@ -189,29 +199,38 @@ export default async function ModuloPage({ params }: Props) {
           )}
 
           {/* Sección instructor */}
-          <div className="mt-12 bg-bg-secondary/50 rounded-xl p-8 border border-border-default">
-            <div className="flex gap-6 items-start">
-              <div className="w-20 h-20 rounded-full bg-bg-tertiary shrink-0 flex items-center justify-center text-2xl font-medium text-text-tertiary">
-                {instructor.name[0]}
-              </div>
-              <div className="flex-1">
-                <p className="text-lg font-medium text-text-primary">{instructor.name}</p>
-                <p className="text-sm text-gold mt-0.5">{instructor.belt}</p>
-                <p className="text-sm text-text-secondary mt-3 leading-relaxed max-w-lg">
-                  Uno de los mejores competidores y profesores de jiu jitsu del mundo. Múltiple campeón mundial y referente del sistema Alliance.
-                </p>
-                {instructor.achievements && (
-                  <div className="flex flex-wrap gap-2 mt-3">
-                    {instructor.achievements.map((a) => (
-                      <span key={a} className="text-xs bg-bg-tertiary text-text-secondary px-2 py-1 rounded-sm">
-                        {a}
-                      </span>
-                    ))}
-                  </div>
-                )}
+          {instructor && (
+            <div className="mt-12 bg-bg-secondary/50 rounded-xl p-8 border border-border-default">
+              <div className="flex gap-6 items-start">
+                <div className="w-20 h-20 rounded-full bg-bg-tertiary shrink-0 overflow-hidden flex items-center justify-center text-2xl font-medium text-text-tertiary">
+                  {instructor.photo_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={instructor.photo_url} alt={instructor.name} className="w-full h-full object-cover" />
+                  ) : (
+                    instructor.name[0]
+                  )}
+                </div>
+                <div className="flex-1">
+                  <p className="text-lg font-medium text-text-primary">{instructor.name}</p>
+                  <p className="text-sm text-gold mt-0.5">{instructor.belt}</p>
+                  {instructor.bio && (
+                    <p className="text-sm text-text-secondary mt-3 leading-relaxed max-w-lg">
+                      {instructor.bio}
+                    </p>
+                  )}
+                  {instructor.achievements && instructor.achievements.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      {instructor.achievements.map((a) => (
+                        <span key={a} className="text-xs bg-bg-tertiary text-text-secondary px-2 py-1 rounded-sm">
+                          {a}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
         </div>
       </main>

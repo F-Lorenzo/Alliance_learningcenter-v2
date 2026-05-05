@@ -15,9 +15,10 @@ const NAV_LINKS = [
 
 interface NavbarProps {
   user?: { name: string; email: string } | null;
+  onLogout?: () => Promise<void>;
 }
 
-export function Navbar({ user }: NavbarProps) {
+export function Navbar({ user, onLogout }: NavbarProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
@@ -92,9 +93,14 @@ export function Navbar({ user }: NavbarProps) {
                         Mis favoritos
                       </Link>
                       <hr className="border-border-default" />
-                      <button className="w-full text-left px-4 py-2.5 text-sm text-danger hover:bg-bg-tertiary transition-colors">
-                        Cerrar sesión
-                      </button>
+                      <form action={onLogout}>
+                        <button
+                          type="submit"
+                          className="w-full text-left px-4 py-2.5 text-sm text-danger hover:bg-bg-tertiary transition-colors"
+                        >
+                          Cerrar sesión
+                        </button>
+                      </form>
                     </div>
                   )}
                 </div>

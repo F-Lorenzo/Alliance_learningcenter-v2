@@ -9,23 +9,29 @@ import { FreeSample } from "@/components/home/free-sample";
 import { Testimonials } from "@/components/home/testimonials";
 import { PricingSection } from "@/components/home/pricing-section";
 import { FaqSection } from "@/components/home/faq-section";
-import {
-  MOCK_CATEGORIES,
-  MOCK_INSTRUCTORS,
-  MOCK_FREE_COURSES,
-} from "@/lib/mock-data";
+import { getCategories, getInstructors, getFreeCourses, getCurrentUser } from "@/lib/queries";
+import { logout } from "@/app/actions";
 
-export default function HomePage() {
+export default async function HomePage() {
+  const [categories, instructors, freeCourses, user] = await Promise.all([
+    getCategories(),
+    getInstructors(),
+    getFreeCourses(),
+    getCurrentUser(),
+  ]);
+
+  const navUser = user ? { name: user.name, email: user.email } : null;
+
   return (
     <>
-      <Navbar user={null} />
+      <Navbar user={navUser} onLogout={logout} />
       <main className="flex-1">
         <Hero />
         <StatsBar />
         <HowItWorks />
-        <CategoriesGrid categories={MOCK_CATEGORIES} />
-        <InstructorsSection instructors={MOCK_INSTRUCTORS} />
-        <FreeSample courses={MOCK_FREE_COURSES} />
+        <CategoriesGrid categories={categories} />
+        <InstructorsSection instructors={instructors} />
+        <FreeSample courses={freeCourses} />
         <Testimonials />
         <PricingSection />
         <FaqSection />
