@@ -1,5 +1,4 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { SupabaseClient } from "@supabase/supabase-js";
 
 // ── Helpers ────────────────────────────────────────────────────
 
@@ -112,11 +111,11 @@ export async function getAdminCourses() {
     created_at: c.created_at as string,
     instructor: c.instructor as unknown as { id: string; name: string } | null,
     categories: (
-      c.course_categories as unknown as Array<{ category: { id: string; name: string } | null }>
+      (c.course_categories as unknown as Array<{ category: { id: string; name: string } | null }>) ?? []
     )
       .map((cc) => cc.category)
       .filter(Boolean) as Array<{ id: string; name: string }>,
-    lesson_count: (c.lessons as unknown[]).length,
+    lesson_count: ((c.lessons as unknown[]) ?? []).length,
   }));
 }
 
@@ -139,11 +138,12 @@ export async function getAdminCourse(id: string) {
 
   return {
     ...data,
-    category_ids: (data.course_categories as Array<{ category_id: string }>).map(
+    // Supabase puede devolver null en relaciones vacías — defensivo con ?? []
+    category_ids: ((data.course_categories as Array<{ category_id: string }>) ?? []).map(
       (cc) => cc.category_id
     ),
     lessons: (
-      data.lessons as Array<{
+      (data.lessons as Array<{
         id: string;
         slug: string;
         title: string;
@@ -151,7 +151,7 @@ export async function getAdminCourse(id: string) {
         video_url: string | null;
         is_free: boolean;
         sort_order: number;
-      }>
+      }>) ?? []
     ).sort((a, b) => a.sort_order - b.sort_order),
   };
 }
