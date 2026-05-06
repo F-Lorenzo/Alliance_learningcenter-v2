@@ -160,17 +160,22 @@ export default async function ModuloPage({ params }: Props) {
               <div className="flex flex-col border border-border-default rounded-xl overflow-hidden">
                 {lessons.map((lesson, i) => {
                   const canWatch = isSubscribed || lesson.is_free;
+                  const href = canWatch
+                    ? `/modulos/${slug}/${lesson.slug}`
+                    : "/planes";
+
                   return (
-                    <div
+                    <Link
                       key={lesson.id}
-                      className="flex items-center gap-4 px-4 py-3 hover:bg-bg-secondary transition-colors group cursor-pointer border-b border-border-default last:border-b-0"
+                      href={href}
+                      className="flex items-center gap-4 px-4 py-3 hover:bg-bg-secondary transition-colors group border-b border-border-default last:border-b-0"
                     >
                       <span className="text-sm font-mono text-text-tertiary w-8 shrink-0">
                         {String(i + 1).padStart(2, "0")}
                       </span>
 
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-text-primary group-hover:text-gold transition-colors truncate">
+                        <p className={`text-sm font-medium transition-colors truncate ${canWatch ? "text-text-primary group-hover:text-gold" : "text-text-tertiary"}`}>
                           {lesson.title}
                         </p>
                         <p className="text-xs text-text-secondary mt-0.5">
@@ -191,7 +196,7 @@ export default async function ModuloPage({ params }: Props) {
                           <CheckCircle className="w-4 h-4 text-text-tertiary" />
                         )}
                       </div>
-                    </div>
+                    </Link>
                   );
                 })}
               </div>
