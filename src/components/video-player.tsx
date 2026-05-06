@@ -26,6 +26,7 @@ interface VideoPlayerProps {
   prevLesson: Lesson | null;
   nextLesson: Lesson | null;
   userEmail?: string;
+  initialProgress?: number; // segundos donde retomar
 }
 
 function fmt(s: number) {
@@ -34,7 +35,7 @@ function fmt(s: number) {
   return `${m}:${sec.toString().padStart(2, "0")}`;
 }
 
-export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, userEmail }: VideoPlayerProps) {
+export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, userEmail, initialProgress = 0 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [loadingUrl, setLoadingUrl] = useState(false);
@@ -51,6 +52,23 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
   const [countdown, setCountdown] = useState<number | null>(null);
   const [watermarkPos, setWatermarkPos] = useState({ top: "10%", right: "2%" });
   const controlsTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastSavedRef = useRef<number>(0);
+
+  // Guardar progreso en la API
+  const saveProgress = useCallback((seconds: number, isCompleted?: boolean) => {
+    if (!lesson.id) return;
+    fetch("/api/progress", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        lesson_id: lesson.id,
+        watched_seconds: Math.floor(seconds),
+        completed: isCompleted ?? completed,
+      }),
+    }).catch(() => {});
+    lastSavedRef.current = seconds;
+  }, [lesson.id, completed]);
 
   // Obtener URL firmada de R2 al montar
   useEffect(() => {
@@ -65,6 +83,30 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
       .catch(() => {})
       .finally(() => setLoadingUrl(false));
   }, [lesson.video_url]);
+
+  // Heartbeat: guardar progreso cada 10 segundos mientras reproduce
+  useEffect(() => {
+    if (!playing) {
+      if (heartbeatRef.current) clearInterval(heartbeatRef.current);
+      return;
+    }
+    heartbeatRef.current = setInterval(() => {
+      if (videoRef.current) saveProgress(videoRef.current.currentTime);
+    }, 10000);
+    return () => {
+      if (heartbeatRef.current) clearInterval(heartbeatRef.current);
+    };
+  }, [playing, saveProgress]);
+
+  // Guardar al desmontar (cambio de lección o cierre)
+  useEffect(() => {
+    return () => {
+      if (heartbeatRef.current) clearInterval(heartbeatRef.current);
+      if (videoRef.current && videoRef.current.currentTime > 5) {
+        saveProgress(videoRef.current.currentTime);
+      }
+    };
+  }, [saveProgress]);
 
   // Sincronizar velocidad
   useEffect(() => {
@@ -115,12 +157,18 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
     setCurrentTime(t);
     if (!completed && duration > 0 && t / duration >= 0.9) {
       setCompleted(true);
+      saveProgress(t, true);
     }
   }
 
   function handleLoadedMetadata() {
     if (videoRef.current) {
       setDuration(videoRef.current.duration);
+      // Retomar desde donde quedó (si pasó más de 5 segundos)
+      if (initialProgress > 5) {
+        videoRef.current.currentTime = initialProgress;
+        setCurrentTime(initialProgress);
+      }
     }
   }
 

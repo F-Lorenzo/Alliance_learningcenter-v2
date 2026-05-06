@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, BookOpen } from "lucide-react";
 import { VideoPlayer } from "@/components/video-player";
-import { getLessonWithCourse, getCurrentUser, getSubscription } from "@/lib/queries";
+import { getLessonWithCourse, getCurrentUser, getSubscription, getLessonProgress } from "@/lib/queries";
 import type { Metadata } from "next";
 
 interface Props {
@@ -39,6 +39,9 @@ export default async function PlayerPage({ params }: Props) {
   const prevLesson = lessonIndex > 0 ? lessons[lessonIndex - 1] : null;
   const nextLesson = lessonIndex < lessons.length - 1 ? lessons[lessonIndex + 1] : null;
 
+  // Progreso guardado para retomar
+  const progress = await getLessonProgress(user.id, lesson.id);
+
   return (
     <div className="flex flex-col h-screen bg-bg-primary overflow-hidden">
       {/* Navbar compacta */}
@@ -66,6 +69,7 @@ export default async function PlayerPage({ params }: Props) {
           prevLesson={prevLesson}
           nextLesson={nextLesson}
           userEmail={user.email}
+          initialProgress={progress.watched_seconds}
         />
       </div>
     </div>

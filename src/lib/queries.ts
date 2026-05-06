@@ -138,6 +138,17 @@ export async function getSubscription(userId: string) {
   return data as { status: string; plan: string; current_period_end: string | null } | null;
 }
 
+export async function getLessonProgress(userId: string, lessonId: string) {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("progress")
+    .select("watched_seconds, completed")
+    .eq("user_id", userId)
+    .eq("lesson_id", lessonId)
+    .maybeSingle();
+  return { watched_seconds: data?.watched_seconds ?? 0, completed: data?.completed ?? false };
+}
+
 export async function getLessonWithCourse(courseSlug: string, lessonSlug: string) {
   const supabase = await createClient();
 
