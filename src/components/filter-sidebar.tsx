@@ -8,47 +8,51 @@ export interface Filters {
   instructor: string;
 }
 
-interface FilterGroup {
+export interface CategoryOption {
+  value: string;
   label: string;
-  key: keyof Filters;
-  options: { value: string; label: string; count?: number }[];
+  count: number;
 }
-
-const FILTER_GROUPS: FilterGroup[] = [
-  {
-    label: "POSICIÓN",
-    key: "category",
-    options: [
-      { value: "", label: "Todas" },
-      { value: "guardia", label: "Guardia", count: 8 },
-      { value: "pasajes", label: "Pasajes", count: 6 },
-      { value: "escapes", label: "Escapes", count: 5 },
-      { value: "espalda", label: "Espalda", count: 4 },
-      { value: "controles", label: "Controles", count: 7 },
-      { value: "derribos", label: "Derribos", count: 3 },
-      { value: "fundamentos", label: "Fundamentos", count: 6 },
-      { value: "defensa-personal", label: "Defensa personal", count: 2 },
-    ],
-  },
-  {
-    label: "ROL",
-    key: "role",
-    options: [
-      { value: "", label: "Todos" },
-      { value: "arriba", label: "Desde arriba" },
-      { value: "abajo", label: "Desde abajo" },
-      { value: "parado", label: "Parado" },
-    ],
-  },
-];
 
 interface FilterSidebarProps {
   filters: Filters;
   onChange: (filters: Filters) => void;
   onClear: () => void;
+  categories?: CategoryOption[];
 }
 
-export function FilterSidebar({ filters, onChange, onClear }: FilterSidebarProps) {
+function FilterOption({
+  value,
+  label,
+  count,
+  isActive,
+  onClick,
+}: {
+  value: string;
+  label: string;
+  count?: number;
+  isActive: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "flex justify-between items-center px-3 py-2 rounded-md text-sm transition-all text-left w-full",
+        isActive
+          ? "text-text-primary bg-bg-secondary font-medium border-l-2 border-gold"
+          : "text-text-secondary hover:text-text-primary hover:bg-bg-secondary"
+      )}
+    >
+      <span>{label}</span>
+      {count !== undefined && (
+        <span className="text-xs text-text-tertiary font-mono">{count}</span>
+      )}
+    </button>
+  );
+}
+
+export function FilterSidebar({ filters, onChange, onClear, categories = [] }: FilterSidebarProps) {
   const hasActive = Object.values(filters).some((v) => v !== "");
 
   return (
@@ -68,39 +72,32 @@ export function FilterSidebar({ filters, onChange, onClear }: FilterSidebarProps
       </div>
 
       <div className="flex flex-col gap-8">
-        {FILTER_GROUPS.map((group) => (
-          <div key={group.key}>
+        {/* Categorías dinámicas */}
+        {categories.length > 0 && (
+          <div>
             <p className="text-[10px] uppercase tracking-[2px] text-text-tertiary font-medium mb-3">
-              {group.label}
+              Posición
             </p>
             <div className="flex flex-col gap-1">
-              {group.options.map((opt) => {
-                const isActive = filters[group.key] === opt.value;
-                return (
-                  <button
-                    key={opt.value}
-                    onClick={() =>
-                      onChange({ ...filters, [group.key]: opt.value })
-                    }
-                    className={cn(
-                      "flex justify-between items-center px-3 py-2 rounded-md text-sm transition-all text-left",
-                      isActive
-                        ? "text-text-primary bg-bg-secondary font-medium border-l-2 border-gold"
-                        : "text-text-secondary hover:text-text-primary hover:bg-bg-secondary"
-                    )}
-                  >
-                    <span>{opt.label}</span>
-                    {opt.count !== undefined && (
-                      <span className="text-xs text-text-tertiary font-mono">
-                        {opt.count}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
+              <FilterOption
+                value=""
+                label="Todas"
+                isActive={filters.category === ""}
+                onClick={() => onChange({ ...filters, category: "" })}
+              />
+              {categories.map((cat) => (
+                <FilterOption
+                  key={cat.value}
+                  value={cat.value}
+                  label={cat.label}
+                  count={cat.count}
+                  isActive={filters.category === cat.value}
+                  onClick={() => onChange({ ...filters, category: cat.value })}
+                />
+              ))}
             </div>
           </div>
-        ))}
+        )}
       </div>
     </aside>
   );

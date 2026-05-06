@@ -293,7 +293,7 @@ export async function toggleSubscription(
 
 // ── ROLES ──────────────────────────────────────────────────────
 
-const VALID_ROLES = ["super_admin", "admin", "profesor", "user"] as const;
+const VALID_ROLES = ["super_admin", "admin", "admin_profesor", "profesor", "user"] as const;
 type Role = (typeof VALID_ROLES)[number];
 
 /**

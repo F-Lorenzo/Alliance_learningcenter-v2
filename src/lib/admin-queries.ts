@@ -25,7 +25,7 @@ async function fetchAllAuthUsers(db: ReturnType<typeof createAdminClient>) {
 
 // ── Role del admin logueado ─────────────────────────────────────
 
-export type AdminRole = "super_admin" | "admin" | "profesor" | "user";
+export type AdminRole = "super_admin" | "admin" | "admin_profesor" | "profesor" | "user";
 
 /**
  * Devuelve el role del usuario logueado.

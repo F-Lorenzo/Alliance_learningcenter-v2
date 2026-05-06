@@ -52,9 +52,9 @@ export async function proxy(request: NextRequest) {
     const role = (user.app_metadata?.role as string | undefined) ?? "";
 
     // Roles con acceso al panel
-    const ADMIN_ROLES = ["super_admin", "admin", "profesor"];
+    const ADMIN_ROLES = ["super_admin", "admin", "admin_profesor", "profesor"];
     // Roles con acceso a usuarios/cobros (no profesor)
-    const MANAGER_ROLES = ["super_admin", "admin"];
+    const MANAGER_ROLES = ["super_admin", "admin", "admin_profesor"];
 
     let hasAccess = ADMIN_ROLES.includes(role);
 
@@ -74,7 +74,7 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    // Profesor solo puede acceder a /admin/cursos y /admin (overview)
+    // Profesor solo puede acceder a /admin/cursos, /admin/profesores y /admin (overview)
     if (role === "profesor") {
       const allowedForProfesor = ["/admin/cursos", "/admin"];
       const allowed = allowedForProfesor.some(

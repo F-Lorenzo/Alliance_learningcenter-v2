@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback } from "react";
 import { Search, SlidersHorizontal, AlertCircle } from "lucide-react";
-import { FilterSidebar, type Filters } from "@/components/filter-sidebar";
+import { FilterSidebar, type Filters, type CategoryOption } from "@/components/filter-sidebar";
 import { CourseCard, CourseCardSkeleton } from "@/components/course-card";
 import { Button } from "@/components/ui/button";
 import type { Course } from "@/types";
@@ -22,6 +22,20 @@ export function CatalogView({ courses, isLoggedIn = false }: CatalogViewProps) {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [page, setPage] = useState(1);
 
+  // Computa categorías con conteos reales a partir de los cursos cargados
+  const categoryOptions = useMemo<CategoryOption[]>(() => {
+    const map = new Map<string, { label: string; count: number }>();
+    courses.forEach((c) => {
+      c.categories.forEach((catName) => {
+        if (!map.has(catName)) map.set(catName, { label: catName, count: 0 });
+        map.get(catName)!.count++;
+      });
+    });
+    return Array.from(map.entries())
+      .map(([label, { count }]) => ({ value: label, label, count }))
+      .sort((a, b) => a.label.localeCompare(b.label, "es"));
+  }, [courses]);
+
   const filtered = useMemo(() => {
     let result = [...courses];
 
@@ -36,9 +50,7 @@ export function CatalogView({ courses, isLoggedIn = false }: CatalogViewProps) {
 
     if (filters.category) {
       result = result.filter((c) =>
-        c.categories.some(
-          (cat) => cat.toLowerCase() === filters.category.toLowerCase()
-        )
+        c.categories.some((cat) => cat === filters.category)
       );
     }
 
@@ -134,6 +146,7 @@ export function CatalogView({ courses, isLoggedIn = false }: CatalogViewProps) {
         <div className="hidden lg:block sticky top-20 h-fit">
           <FilterSidebar
             filters={filters}
+            categories={categoryOptions}
             onChange={(f) => { setFilters(f); setPage(1); }}
             onClear={clearFilters}
           />
@@ -149,6 +162,7 @@ export function CatalogView({ courses, isLoggedIn = false }: CatalogViewProps) {
             <div className="absolute bottom-0 left-0 right-0 bg-bg-secondary border-t border-border-default rounded-t-2xl p-6 max-h-[80vh] overflow-y-auto">
               <FilterSidebar
                 filters={filters}
+                categories={categoryOptions}
                 onChange={(f) => { setFilters(f); setPage(1); setFiltersOpen(false); }}
                 onClear={() => { clearFilters(); setFiltersOpen(false); }}
               />

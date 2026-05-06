@@ -8,6 +8,7 @@ import { AdminNav } from "./admin-nav";
 const ROLE_LABEL: Record<string, string> = {
   super_admin: "Super Admin",
   admin: "Admin",
+  admin_profesor: "Admin + Profesor",
   profesor: "Profesor",
   user: "Usuario",
 };
