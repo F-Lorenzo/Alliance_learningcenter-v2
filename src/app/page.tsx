@@ -30,7 +30,7 @@ export default async function HomePage() {
         <StatsBar />
         <HowItWorks />
         <CategoriesGrid categories={categories} />
-        <InstructorsSection instructors={instructors} />
+        {instructors.length > 0 && <InstructorsSection instructors={instructors} />}
         <FreeSample courses={freeCourses} />
         <Testimonials />
         <PricingSection />

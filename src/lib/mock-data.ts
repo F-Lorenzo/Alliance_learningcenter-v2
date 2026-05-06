@@ -1,12 +1,4 @@
-import type { Course, Instructor, Category } from "@/types";
-
-export const MOCK_INSTRUCTORS: Instructor[] = [
-  { id: "1", name: "Marcelo Garcia", belt: "Cinturón negro 4to grado", achievements: ["Campeón Mundial 5x", "ADCC Champion 4x"] },
-  { id: "2", name: "Romulo Barral", belt: "Cinturón negro 4to grado", achievements: ["Campeón Mundial 6x"] },
-  { id: "3", name: "Leandro Lo", belt: "Cinturón negro 2do grado", achievements: ["Campeón Mundial 8x"] },
-  { id: "4", name: "Bernardo Faria", belt: "Cinturón negro 3er grado", achievements: ["Campeón Mundial 5x"] },
-  { id: "5", name: "Lucas Lepri", belt: "Cinturón negro 3er grado", achievements: ["Campeón Mundial 6x"] },
-];
+import type { Course, Category } from "@/types";
 
 export const MOCK_CATEGORIES: Category[] = [
   { id: "1", name: "Guardia", slug: "guardia", sort_order: 1, course_count: 8 },
