@@ -129,7 +129,7 @@ export async function getAdminCourse(id: string) {
       total_duration, is_free, is_published, is_new, is_featured,
       instructor_id,
       course_categories(category_id),
-      lessons(id, slug, title, duration, video_url, is_free, sort_order)`
+      lessons(id, slug, title, description, duration, video_url, is_free, sort_order)`
     )
     .eq("id", id)
     .maybeSingle();
@@ -147,6 +147,7 @@ export async function getAdminCourse(id: string) {
         id: string;
         slug: string;
         title: string;
+        description: string | null;
         duration: number;
         video_url: string | null;
         is_free: boolean;

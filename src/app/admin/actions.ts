@@ -125,8 +125,9 @@ export async function createLesson(courseId: string, formData: FormData) {
     course_id: courseId,
     title,
     slug: slugify(title),
+    description: (formData.get("description") as string) || null,
     duration: parseInt(formData.get("duration") as string) || 0,
-    video_url: formData.get("video_url") as string || null,
+    video_url: (formData.get("video_url") as string) || null,
     is_free: formData.get("is_free") === "true",
     sort_order: nextOrder,
   });
@@ -149,8 +150,9 @@ export async function updateLesson(
     .update({
       title,
       slug: slugify(title),
+      description: (formData.get("description") as string) || null,
       duration: parseInt(formData.get("duration") as string) || 0,
-      video_url: formData.get("video_url") as string || null,
+      video_url: (formData.get("video_url") as string) || null,
       is_free: formData.get("is_free") === "true",
       sort_order: parseInt(formData.get("sort_order") as string) || 1,
     })

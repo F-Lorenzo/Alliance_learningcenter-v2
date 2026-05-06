@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { Plus, Pencil } from "lucide-react";
+import { Plus, Pencil, Trash2 } from "lucide-react";
 import { getAdminCourses } from "@/lib/admin-queries";
-import { togglePublished } from "@/app/admin/actions";
+import { togglePublished, deleteCourse } from "@/app/admin/actions";
 import { cn } from "@/lib/utils";
 import type { Metadata } from "next";
 
@@ -107,14 +107,34 @@ export default async function CursosPage() {
                       </button>
                     </form>
                   </td>
-                  <td className="px-4 py-3 text-right">
-                    <Link
-                      href={`/admin/cursos/${c.id}`}
-                      className="inline-flex items-center gap-1.5 text-xs text-text-tertiary hover:text-gold transition-colors"
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                      Editar
-                    </Link>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-1">
+                      <Link
+                        href={`/admin/cursos/${c.id}`}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-text-tertiary hover:text-gold hover:bg-gold/10 rounded-md transition-colors"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                        Editar
+                      </Link>
+                      <form
+                        action={async () => {
+                          "use server";
+                          await deleteCourse(c.id);
+                        }}
+                      >
+                        <button
+                          type="submit"
+                          onClick={(e) => {
+                            if (!confirm(`¿Eliminar "${c.title}"? Esta acción no se puede deshacer.`)) {
+                              e.preventDefault();
+                            }
+                          }}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-text-tertiary hover:text-danger hover:bg-danger/10 rounded-md transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </form>
+                    </div>
                   </td>
                 </tr>
               ))

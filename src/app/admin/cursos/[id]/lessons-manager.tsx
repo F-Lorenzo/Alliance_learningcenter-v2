@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Plus, Pencil, Trash2, GripVertical, Check, X } from "lucide-react";
+import { Plus, Pencil, Trash2, GripVertical, Link as LinkIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -9,6 +9,7 @@ interface Lesson {
   id: string;
   slug: string;
   title: string;
+  description: string | null;
   duration: number;
   video_url: string | null;
   is_free: boolean;
@@ -22,6 +23,9 @@ interface Props {
   onUpdateLesson: (lessonId: string, courseId: string, formData: FormData) => Promise<void>;
   onDeleteLesson: (lessonId: string, courseId: string) => Promise<void>;
 }
+
+const fieldCls =
+  "bg-bg-primary border border-border-default rounded-md px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-gold/50 transition-colors";
 
 function LessonField({
   label,
@@ -47,7 +51,32 @@ function LessonField({
         placeholder={placeholder}
         defaultValue={String(defaultValue ?? "")}
         required={required}
-        className="bg-bg-primary border border-border-default rounded-md px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-gold/50 transition-colors"
+        className={fieldCls}
+      />
+    </div>
+  );
+}
+
+function LessonTextarea({
+  label,
+  name,
+  placeholder,
+  defaultValue,
+}: {
+  label: string;
+  name: string;
+  placeholder?: string;
+  defaultValue?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="text-xs text-text-tertiary">{label}</label>
+      <textarea
+        name={name}
+        placeholder={placeholder}
+        defaultValue={defaultValue ?? ""}
+        rows={3}
+        className={cn(fieldCls, "resize-none")}
       />
     </div>
   );
@@ -77,9 +106,23 @@ function NewLessonForm({
     <form onSubmit={handleSubmit} className="bg-bg-primary border border-gold/30 rounded-lg p-4 flex flex-col gap-3">
       <p className="text-xs font-medium text-gold uppercase tracking-wider">Nueva lección</p>
       <LessonField label="Título *" name="title" placeholder="Ej: Grip inicial y posición base" required />
-      <LessonField label="Video (key en R2)" name="video_url" placeholder="ej: clase-guardia-1.mp4" />
-      <LessonField label="Duración (segundos)" name="duration" type="number" placeholder="600" />
-      <LessonField label="Orden" name="sort_order" type="number" defaultValue="1" />
+      <LessonTextarea label="Descripción" name="description" placeholder="Breve descripción de lo que se cubre en esta clase…" />
+      <div className="flex flex-col gap-1">
+        <label className="text-xs text-text-tertiary flex items-center gap-1">
+          <LinkIcon className="w-3 h-3" />
+          Link del video
+        </label>
+        <input
+          name="video_url"
+          type="url"
+          placeholder="https://..."
+          className={fieldCls}
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <LessonField label="Duración (segundos)" name="duration" type="number" placeholder="600" />
+        <LessonField label="Orden" name="sort_order" type="number" defaultValue="1" />
+      </div>
       <label className="flex items-center gap-2 cursor-pointer">
         <input
           type="checkbox"
@@ -91,7 +134,7 @@ function NewLessonForm({
       </label>
       <div className="flex gap-2 pt-1">
         <Button type="submit" variant="primary" size="sm" disabled={pending}>
-          {pending ? "Guardando…" : "Agregar"}
+          {pending ? "Guardando…" : "Agregar lección"}
         </Button>
         <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
           Cancelar
@@ -126,7 +169,25 @@ function EditLessonForm({
   return (
     <form onSubmit={handleSubmit} className="bg-bg-primary border border-gold/20 rounded-lg p-4 flex flex-col gap-3">
       <LessonField label="Título *" name="title" defaultValue={lesson.title} required />
-      <LessonField label="Video (key en R2)" name="video_url" defaultValue={lesson.video_url ?? ""} placeholder="ej: clase-guardia-1.mp4" />
+      <LessonTextarea
+        label="Descripción"
+        name="description"
+        defaultValue={lesson.description ?? ""}
+        placeholder="Breve descripción de lo que se cubre en esta clase…"
+      />
+      <div className="flex flex-col gap-1">
+        <label className="text-xs text-text-tertiary flex items-center gap-1">
+          <LinkIcon className="w-3 h-3" />
+          Link del video
+        </label>
+        <input
+          name="video_url"
+          type="url"
+          defaultValue={lesson.video_url ?? ""}
+          placeholder="https://..."
+          className={fieldCls}
+        />
+      </div>
       <div className="grid grid-cols-2 gap-3">
         <LessonField label="Duración (seg)" name="duration" type="number" defaultValue={lesson.duration} />
         <LessonField label="Orden" name="sort_order" type="number" defaultValue={lesson.sort_order} />
@@ -143,7 +204,7 @@ function EditLessonForm({
       </label>
       <div className="flex gap-2 pt-1">
         <Button type="submit" variant="primary" size="sm" disabled={pending}>
-          {pending ? "Guardando…" : "Guardar"}
+          {pending ? "Guardando…" : "Guardar cambios"}
         </Button>
         <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
           Cancelar
@@ -218,6 +279,9 @@ export function LessonsManager({ courseId, lessons, onCreateLesson, onUpdateLess
               </span>
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-text-primary truncate leading-tight">{lesson.title}</p>
+                {lesson.description && (
+                  <p className="text-xs text-text-tertiary truncate mt-0.5 leading-tight">{lesson.description}</p>
+                )}
                 <div className="flex items-center gap-2 mt-0.5">
                   <span className="text-xs text-text-tertiary font-mono">{fmtDuration(lesson.duration)}</span>
                   {lesson.is_free && (
@@ -226,7 +290,8 @@ export function LessonsManager({ courseId, lessons, onCreateLesson, onUpdateLess
                     </span>
                   )}
                   {lesson.video_url && (
-                    <span className="text-[10px] bg-info/10 text-info px-1.5 py-0 rounded-sm">
+                    <span className="text-[10px] bg-info/10 text-info px-1.5 py-0 rounded-sm flex items-center gap-0.5">
+                      <LinkIcon className="w-2.5 h-2.5" />
                       VIDEO
                     </span>
                   )}
