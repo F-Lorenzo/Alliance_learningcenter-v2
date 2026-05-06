@@ -135,20 +135,23 @@ export default async function ModuloPage({ params }: Props) {
             </div>
 
             {/* Columna derecha: thumbnail / trailer */}
-            <div className="aspect-video rounded-xl overflow-hidden relative bg-bg-tertiary lg:sticky lg:top-24">
+            <Link
+              href={`/modulos/${slug}/${lessons[0]?.slug ?? ""}`}
+              className="aspect-video rounded-xl overflow-hidden relative bg-bg-tertiary lg:sticky lg:top-24 block group"
+            >
               {course.thumbnail_url && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={course.thumbnail_url} alt={course.title} className="w-full h-full object-cover" />
               )}
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center border border-white/20 backdrop-blur-sm">
+                <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center border border-white/20 backdrop-blur-sm group-hover:bg-white/20 group-hover:scale-110 transition-all duration-200">
                   <Play className="w-7 h-7 text-white fill-white translate-x-0.5" />
                 </div>
               </div>
               <span className="absolute top-3 left-3 bg-gold text-black text-[10px] font-medium px-2 py-1 rounded-sm">
                 PREVIEW GRATIS
               </span>
-            </div>
+            </Link>
           </div>
 
           {/* Lista de técnicas */}
