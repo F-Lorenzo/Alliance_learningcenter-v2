@@ -203,6 +203,41 @@ export async function getAdminInstructors() {
   return data ?? [];
 }
 
+export async function getAdminInstructorsFull() {
+  const db = createAdminClient();
+  const { data } = await db
+    .from("instructors")
+    .select("id, name, belt, photo_url, bio, achievements, sort_order")
+    .order("sort_order");
+  return (data ?? []) as Array<{
+    id: string;
+    name: string;
+    belt: string;
+    photo_url: string | null;
+    bio: string | null;
+    achievements: string[] | null;
+    sort_order: number;
+  }>;
+}
+
+export async function getAdminInstructor(id: string) {
+  const db = createAdminClient();
+  const { data } = await db
+    .from("instructors")
+    .select("id, name, belt, photo_url, bio, achievements, sort_order")
+    .eq("id", id)
+    .maybeSingle();
+  return data as {
+    id: string;
+    name: string;
+    belt: string;
+    photo_url: string | null;
+    bio: string | null;
+    achievements: string[] | null;
+    sort_order: number;
+  } | null;
+}
+
 // ── Cobros ─────────────────────────────────────────────────────
 
 export async function getAdminSubscriptions(page = 1) {

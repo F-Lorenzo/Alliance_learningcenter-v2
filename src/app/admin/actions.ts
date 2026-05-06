@@ -170,6 +170,72 @@ export async function deleteLesson(lessonId: string, courseId: string) {
   revalidatePath(`/admin/cursos/${courseId}`);
 }
 
+// ── INSTRUCTORES ───────────────────────────────────────────────
+
+export async function createInstructor(formData: FormData) {
+  const db = createAdminClient();
+
+  const achievementsRaw = (formData.get("achievements") as string) ?? "";
+  const achievements = achievementsRaw
+    .split("\n")
+    .map((a) => a.trim())
+    .filter(Boolean);
+
+  const { data, error } = await db
+    .from("instructors")
+    .insert({
+      name: formData.get("name") as string,
+      belt: formData.get("belt") as string,
+      photo_url: (formData.get("photo_url") as string) || null,
+      bio: (formData.get("bio") as string) || null,
+      achievements: achievements.length ? achievements : null,
+      sort_order: parseInt(formData.get("sort_order") as string) || 99,
+    })
+    .select("id")
+    .single();
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/admin/profesores");
+  revalidatePath("/profesores");
+  redirect(`/admin/profesores/${data.id}`);
+}
+
+export async function updateInstructor(id: string, formData: FormData) {
+  const db = createAdminClient();
+
+  const achievementsRaw = (formData.get("achievements") as string) ?? "";
+  const achievements = achievementsRaw
+    .split("\n")
+    .map((a) => a.trim())
+    .filter(Boolean);
+
+  const { error } = await db
+    .from("instructors")
+    .update({
+      name: formData.get("name") as string,
+      belt: formData.get("belt") as string,
+      photo_url: (formData.get("photo_url") as string) || null,
+      bio: (formData.get("bio") as string) || null,
+      achievements: achievements.length ? achievements : null,
+      sort_order: parseInt(formData.get("sort_order") as string) || 99,
+    })
+    .eq("id", id);
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/admin/profesores");
+  revalidatePath("/profesores");
+}
+
+export async function deleteInstructor(id: string) {
+  const db = createAdminClient();
+  await db.from("instructors").delete().eq("id", id);
+  revalidatePath("/admin/profesores");
+  revalidatePath("/profesores");
+  redirect("/admin/profesores");
+}
+
 // ── SUSCRIPCIONES ──────────────────────────────────────────────
 
 /**
