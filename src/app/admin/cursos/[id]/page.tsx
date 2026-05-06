@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft, Trash2, VideoIcon } from "lucide-react";
+import { ChevronLeft, VideoIcon } from "lucide-react";
 import { getAdminCourse, getAdminCategories, getAdminInstructors } from "@/lib/admin-queries";
 import { updateCourse, deleteCourse, createLesson, updateLesson, deleteLesson } from "@/app/admin/actions";
 import { CourseForm } from "../course-form";
 import { LessonsManager } from "./lessons-manager";
+import { DeleteCourseConfirm } from "./delete-course-confirm";
 import type { Metadata } from "next";
 
 interface Props {
@@ -72,20 +73,10 @@ export default async function EditCursoPage({ params, searchParams }: Props) {
           <h1 className="text-2xl font-medium text-text-primary">{course.title}</h1>
         </div>
 
-        <form action={handleDelete}>
-          <button
-            type="submit"
-            onClick={(e) => {
-              if (!confirm("¿Eliminar este curso y todas sus lecciones? Esta acción no se puede deshacer.")) {
-                e.preventDefault();
-              }
-            }}
-            className="inline-flex items-center gap-2 px-3 py-2 text-sm text-danger border border-danger/30 rounded-lg hover:bg-danger/10 transition-colors"
-          >
-            <Trash2 className="w-4 h-4" />
-            Eliminar curso
-          </button>
-        </form>
+        <DeleteCourseConfirm
+          courseTitle={course.title as string}
+          onDelete={handleDelete}
+        />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_420px] gap-8">
