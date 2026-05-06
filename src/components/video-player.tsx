@@ -89,40 +89,69 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
   const [progressError, setProgressError] = useState(false);
   const controlsTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const lastSavedRef = useRef<number>(0);
+  const lastSavedRef = useRef<number>(0);      // posición (segundos) del último save
+  const lastSavedAtRef = useRef<number>(0);    // timestamp (ms) del último save
+  const pendingSaveRef = useRef<{ seconds: number; completed: boolean } | null>(null); // cola offline
   const abortControllerRef = useRef<AbortController | null>(null);
   const seekSaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Deduplicación: evita guardar si la posición no cambió y el save fue reciente ──
+  // Caso típico: onPause + visibilitychange disparan juntos → mismo segundo, misma pos.
+  const isDuplicate = useCallback((seconds: number): boolean => {
+    const positionDelta = Math.abs(seconds - lastSavedRef.current);
+    const msSinceLastSave = Date.now() - lastSavedAtRef.current;
+    return positionDelta < 2 && msSinceLastSave < 3000;
+  }, []);
 
   // ── Guardar progreso via fetch (mientras la página sigue abierta) ─
   const saveProgress = useCallback((seconds: number, isCompleted?: boolean) => {
     if (!lesson.id) return;
+    if (isDuplicate(seconds)) return; // skip: save idéntico hace <3s
+
+    const body = JSON.stringify({
+      lesson_id: lesson.id,
+      watched_seconds: Math.floor(seconds),
+      completed: isCompleted ?? completed,
+    });
+
+    // Actualizar refs antes del fetch (optimista) para que la deduplicación funcione
+    lastSavedRef.current = seconds;
+    lastSavedAtRef.current = Date.now();
+
     fetch("/api/progress", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        lesson_id: lesson.id,
-        watched_seconds: Math.floor(seconds),
-        completed: isCompleted ?? completed,
-      }),
+      body,
     })
       .then((r) => {
         if (!r.ok) {
           console.error("[progress] Error al guardar progreso:", r.status);
+          // Encolar para reintentar al recuperar conexión
+          pendingSaveRef.current = { seconds, completed: isCompleted ?? completed };
           setProgressError(true);
           setTimeout(() => setProgressError(false), 5000);
+        } else {
+          // Save exitoso: limpiar cola offline si la había
+          pendingSaveRef.current = null;
         }
       })
       .catch(() => {
+        // Error de red → encolar para cuando vuelva la conexión
+        pendingSaveRef.current = { seconds, completed: isCompleted ?? completed };
         setProgressError(true);
         setTimeout(() => setProgressError(false), 5000);
       });
-    lastSavedRef.current = seconds;
-  }, [lesson.id, completed]);
+  }, [lesson.id, completed, isDuplicate]);
 
   // ── Guardar via sendBeacon (garantizado incluso al cerrar el browser) ──
   // sendBeacon no puede cancelarse ni falla por cierre de pestaña.
   const saveProgressBeacon = useCallback((seconds: number, isCompleted?: boolean) => {
     if (!lesson.id || seconds <= 5) return;
+    if (isDuplicate(seconds)) return; // skip: save idéntico hace <3s
+
+    lastSavedRef.current = seconds;
+    lastSavedAtRef.current = Date.now();
+
     const payload = JSON.stringify({
       lesson_id: lesson.id,
       watched_seconds: Math.floor(seconds),
@@ -132,7 +161,19 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
       "/api/progress",
       new Blob([payload], { type: "application/json" })
     );
-  }, [lesson.id, completed]);
+  }, [lesson.id, completed, isDuplicate]);
+
+  // ── Cola offline: reintentar el último save cuando vuelve la conexión ──
+  useEffect(() => {
+    function handleOnline() {
+      const pending = pendingSaveRef.current;
+      if (!pending) return;
+      pendingSaveRef.current = null; // limpiar antes de reintentar
+      saveProgress(pending.seconds, pending.completed);
+    }
+    window.addEventListener("online", handleOnline);
+    return () => window.removeEventListener("online", handleOnline);
+  }, [saveProgress]);
 
   // ── Obtener URL firmada de R2 al montar ───────────────────────
   // 1. Primero busca en sessionStorage (evita request si la URL sigue vigente)
@@ -209,16 +250,18 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [saveProgressBeacon]);
 
-  // ── beforeunload: sendBeacon garantiza entrega al cerrar el browser ──
-  // fetch() se cancela cuando la página cierra. sendBeacon no.
+  // ── pagehide: reemplaza beforeunload para mayor compatibilidad ──────
+  // `beforeunload` no dispara en iOS Safari ni cuando la página entra al bfcache.
+  // `pagehide` cubre ambos casos y todos los navegadores desktop también.
+  // sendBeacon garantiza la entrega incluso cuando el proceso ya está cerrando.
   useEffect(() => {
-    function handleBeforeUnload() {
+    function handlePageHide() {
       if (videoRef.current && videoRef.current.currentTime > 5) {
         saveProgressBeacon(videoRef.current.currentTime);
       }
     }
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+    window.addEventListener("pagehide", handlePageHide);
+    return () => window.removeEventListener("pagehide", handlePageHide);
   }, [saveProgressBeacon]);
 
   // ── Desmontar por cambio de lección (navegación interna) ──────
