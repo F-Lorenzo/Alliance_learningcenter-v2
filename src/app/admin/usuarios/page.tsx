@@ -1,5 +1,6 @@
 import { getAdminUsers } from "@/lib/admin-queries";
-import { toggleAdminRole } from "@/app/admin/actions";
+import { toggleAdminRole, toggleSubscription } from "@/app/admin/actions";
+import { ToggleSubscriptionButton } from "./toggle-subscription-button";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -64,7 +65,9 @@ export default async function UsuariosPage({ searchParams }: Props) {
               <th className="text-left px-4 py-3 text-text-tertiary font-medium text-xs uppercase tracking-wider hidden lg:table-cell">
                 Registrado
               </th>
-              <th className="px-4 py-3" />
+              <th className="px-4 py-3 text-left text-text-tertiary font-medium text-xs uppercase tracking-wider hidden sm:table-cell">
+                Acciones
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -118,20 +121,31 @@ export default async function UsuariosPage({ searchParams }: Props) {
                   <td className="px-4 py-3 hidden lg:table-cell text-text-secondary font-mono text-xs">
                     {new Date(u.created_at).toLocaleDateString("es-AR")}
                   </td>
-                  <td className="px-4 py-3 text-right">
-                    <form
-                      action={async () => {
-                        "use server";
-                        await toggleAdminRole(u.id, u.is_admin);
-                      }}
-                    >
-                      <button
-                        type="submit"
-                        className="text-xs text-text-tertiary hover:text-text-primary transition-colors"
+                  <td className="px-4 py-3 hidden sm:table-cell">
+                    <div className="flex items-center gap-4 justify-end">
+                      {/* Toggle suscripción */}
+                      <ToggleSubscriptionButton
+                        userId={u.id}
+                        userName={u.full_name}
+                        currentStatus={u.subscription?.status ?? null}
+                        onToggle={toggleSubscription}
+                      />
+
+                      {/* Toggle admin */}
+                      <form
+                        action={async () => {
+                          "use server";
+                          await toggleAdminRole(u.id, u.is_admin);
+                        }}
                       >
-                        {u.is_admin ? "Quitar admin" : "Hacer admin"}
-                      </button>
-                    </form>
+                        <button
+                          type="submit"
+                          className="text-xs text-text-tertiary hover:text-text-primary transition-colors"
+                        >
+                          {u.is_admin ? "Quitar admin" : "Hacer admin"}
+                        </button>
+                      </form>
+                    </div>
                   </td>
                 </tr>
               ))

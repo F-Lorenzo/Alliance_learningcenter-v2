@@ -169,6 +169,61 @@ export async function deleteLesson(lessonId: string, courseId: string) {
   revalidatePath(`/admin/cursos/${courseId}`);
 }
 
+// ── SUSCRIPCIONES ──────────────────────────────────────────────
+
+/**
+ * Activa o desactiva manualmente la suscripción de un usuario desde el panel admin.
+ * - Si está activa/trialing → la cancela (status = "canceled").
+ * - Si no tiene o está cancelada → crea/reactiva con status = "active" por 1 año.
+ */
+export async function toggleSubscription(
+  userId: string,
+  currentStatus: string | null
+) {
+  const db = createAdminClient();
+  const isActive = currentStatus === "active" || currentStatus === "trialing";
+
+  if (isActive) {
+    // Desactivar: marcar como cancelada
+    await db
+      .from("subscriptions")
+      .update({ status: "canceled" })
+      .eq("user_id", userId)
+      .in("status", ["active", "trialing"]);
+  } else {
+    // Activar: buscar fila existente para reutilizar el plan
+    const { data: existing } = await db
+      .from("subscriptions")
+      .select("id, plan")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const periodEnd = new Date();
+    periodEnd.setFullYear(periodEnd.getFullYear() + 1); // 1 año
+
+    if (existing) {
+      await db
+        .from("subscriptions")
+        .update({
+          status: "active",
+          current_period_end: periodEnd.toISOString(),
+        })
+        .eq("id", existing.id);
+    } else {
+      await db.from("subscriptions").insert({
+        user_id: userId,
+        status: "active",
+        plan: "yearly",
+        current_period_end: periodEnd.toISOString(),
+      });
+    }
+  }
+
+  revalidatePath("/admin/usuarios");
+}
+
 // ── USUARIOS ───────────────────────────────────────────────────
 
 export async function toggleAdminRole(userId: string, current: boolean) {
