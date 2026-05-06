@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 
 function slugify(str: string) {
   return str
@@ -219,6 +220,62 @@ export async function toggleSubscription(
         current_period_end: periodEnd.toISOString(),
       });
     }
+  }
+
+  revalidatePath("/admin/usuarios");
+}
+
+// ── ROLES ──────────────────────────────────────────────────────
+
+const VALID_ROLES = ["super_admin", "admin", "profesor", "user"] as const;
+type Role = (typeof VALID_ROLES)[number];
+
+/**
+ * Cambia el rol de un usuario. Solo el super_admin puede ejecutar esta acción.
+ * El rol super_admin no puede ser asignado ni removido desde aquí.
+ */
+export async function setUserRole(targetUserId: string, newRole: Role) {
+  // 1. Verificar que el caller es super_admin
+  const serverDb = await createClient();
+  const {
+    data: { user: caller },
+  } = await serverDb.auth.getUser();
+
+  if (!caller) throw new Error("No autenticado");
+  const callerRole = caller.app_metadata?.role as string | undefined;
+  if (callerRole !== "super_admin") throw new Error("Solo el super admin puede cambiar roles");
+  if (!VALID_ROLES.includes(newRole)) throw new Error("Rol inválido");
+
+  const db = createAdminClient();
+
+  // 2. No se puede tocar al super_admin
+  const { data: target } = await db
+    .from("profiles")
+    .select("role")
+    .eq("id", targetUserId)
+    .maybeSingle();
+  if ((target?.role as string) === "super_admin") {
+    throw new Error("El rol del super admin no puede cambiarse");
+  }
+
+  // 3. Actualizar profiles.role
+  await db.from("profiles").update({ role: newRole }).eq("id", targetUserId);
+
+  // 4. Sincronizar JWT app_metadata (sin DB extra en próximas requests)
+  await db.auth.admin.updateUserById(targetUserId, {
+    app_metadata: {
+      role: newRole,
+      is_admin: ["super_admin", "admin"].includes(newRole),
+    },
+  });
+
+  // 5. Sincronizar tabla admins (retrocompatibilidad con proxy fallback)
+  if (["super_admin", "admin"].includes(newRole)) {
+    await db
+      .from("admins")
+      .upsert({ user_id: targetUserId }, { onConflict: "user_id" });
+  } else {
+    await db.from("admins").delete().eq("user_id", targetUserId);
   }
 
   revalidatePath("/admin/usuarios");

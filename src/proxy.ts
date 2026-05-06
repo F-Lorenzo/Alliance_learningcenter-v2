@@ -39,7 +39,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // ── Rutas del admin: requieren login + is_admin ───────────────
+  // ── Rutas del admin: protección por roles ────────────────────
   if (pathname.startsWith("/admin")) {
     if (!user) {
       const url = request.nextUrl.clone();
@@ -48,24 +48,47 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    // Verificar admin desde app_metadata del JWT (sin query a DB).
-    // app_metadata.is_admin se setea en toggleAdminRole() via admin API.
-    // Fallback: consultar tabla admins para admins creados antes de esta migración.
-    const isAdminByJwt = user.app_metadata?.is_admin === true;
+    // Leer rol desde JWT (sin query a DB en el caso feliz)
+    const role = (user.app_metadata?.role as string | undefined) ?? "";
 
-    if (!isAdminByJwt) {
+    // Roles con acceso al panel
+    const ADMIN_ROLES = ["super_admin", "admin", "profesor"];
+    // Roles con acceso a usuarios/cobros (no profesor)
+    const MANAGER_ROLES = ["super_admin", "admin"];
+
+    let hasAccess = ADMIN_ROLES.includes(role);
+
+    // Fallback a tabla admins para usuarios sin role en JWT (pre-migración)
+    if (!hasAccess) {
       const { data: adminRecord } = await supabase
         .from("admins")
         .select("user_id")
         .eq("user_id", user.id)
         .maybeSingle();
+      if (adminRecord) hasAccess = true;
+    }
 
-      if (!adminRecord) {
+    if (!hasAccess) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/dashboard";
+      return NextResponse.redirect(url);
+    }
+
+    // Profesor solo puede acceder a /admin/cursos y /admin (overview)
+    if (role === "profesor") {
+      const allowedForProfesor = ["/admin/cursos", "/admin"];
+      const allowed = allowedForProfesor.some(
+        (p) => pathname === p || pathname.startsWith(p + "/")
+      );
+      if (!allowed) {
         const url = request.nextUrl.clone();
-        url.pathname = "/dashboard";
+        url.pathname = "/admin/cursos";
         return NextResponse.redirect(url);
       }
     }
+
+    // Admin no puede acceder a gestión de roles (solo super_admin)
+    // (la restricción de UI la hace el panel; aquí no hay ruta dedicada todavía)
   }
 
   // ── Si ya está logueado, redirigir de login/registro al dashboard

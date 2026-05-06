@@ -1,6 +1,7 @@
-import { getAdminUsers } from "@/lib/admin-queries";
-import { toggleAdminRole, toggleSubscription } from "@/app/admin/actions";
+import { getAdminUsers, getAdminCurrentRole } from "@/lib/admin-queries";
+import { toggleAdminRole, toggleSubscription, setUserRole } from "@/app/admin/actions";
 import { ToggleSubscriptionButton } from "./toggle-subscription-button";
+import { RoleSelector } from "./role-selector";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -35,8 +36,12 @@ export default async function UsuariosPage({ searchParams }: Props) {
   const { page: pageParam } = await searchParams;
   const currentPage = Math.max(1, parseInt(pageParam ?? "1", 10));
 
-  const { users, total, perPage } = await getAdminUsers(currentPage);
+  const [{ users, total, perPage }, viewerRole] = await Promise.all([
+    getAdminUsers(currentPage),
+    getAdminCurrentRole(),
+  ]);
   const totalPages = Math.ceil(total / perPage);
+  const isSuperAdmin = viewerRole === "super_admin";
 
   return (
     <div className="p-8">
@@ -65,6 +70,11 @@ export default async function UsuariosPage({ searchParams }: Props) {
               <th className="text-left px-4 py-3 text-text-tertiary font-medium text-xs uppercase tracking-wider hidden lg:table-cell">
                 Registrado
               </th>
+              {isSuperAdmin && (
+                <th className="text-left px-4 py-3 text-text-tertiary font-medium text-xs uppercase tracking-wider hidden md:table-cell">
+                  Rol
+                </th>
+              )}
               <th className="px-4 py-3 text-left text-text-tertiary font-medium text-xs uppercase tracking-wider hidden sm:table-cell">
                 Acciones
               </th>
@@ -121,30 +131,26 @@ export default async function UsuariosPage({ searchParams }: Props) {
                   <td className="px-4 py-3 hidden lg:table-cell text-text-secondary font-mono text-xs">
                     {new Date(u.created_at).toLocaleDateString("es-AR")}
                   </td>
+                  {/* Selector de rol (solo super_admin) */}
+                  {isSuperAdmin && (
+                    <td className="px-4 py-3 hidden md:table-cell">
+                      <RoleSelector
+                        userId={u.id}
+                        userName={u.full_name}
+                        currentRole={u.role}
+                        onSetRole={setUserRole}
+                      />
+                    </td>
+                  )}
+
                   <td className="px-4 py-3 hidden sm:table-cell">
                     <div className="flex items-center gap-4 justify-end">
-                      {/* Toggle suscripción */}
                       <ToggleSubscriptionButton
                         userId={u.id}
                         userName={u.full_name}
                         currentStatus={u.subscription?.status ?? null}
                         onToggle={toggleSubscription}
                       />
-
-                      {/* Toggle admin */}
-                      <form
-                        action={async () => {
-                          "use server";
-                          await toggleAdminRole(u.id, u.is_admin);
-                        }}
-                      >
-                        <button
-                          type="submit"
-                          className="text-xs text-text-tertiary hover:text-text-primary transition-colors"
-                        >
-                          {u.is_admin ? "Quitar admin" : "Hacer admin"}
-                        </button>
-                      </form>
                     </div>
                   </td>
                 </tr>

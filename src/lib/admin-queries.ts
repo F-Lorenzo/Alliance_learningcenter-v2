@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 
 // ── Helpers ────────────────────────────────────────────────────
 
@@ -20,6 +21,38 @@ async function fetchAllAuthUsers(db: ReturnType<typeof createAdminClient>) {
   }
 
   return allUsers;
+}
+
+// ── Role del admin logueado ─────────────────────────────────────
+
+export type AdminRole = "super_admin" | "admin" | "profesor" | "user";
+
+/**
+ * Devuelve el role del usuario logueado.
+ * Lee primero del JWT (sin DB), hace fallback a profiles si no está cacheado.
+ */
+export async function getAdminCurrentRole(): Promise<AdminRole> {
+  const db = await createClient();
+  const {
+    data: { user },
+  } = await db.auth.getUser();
+
+  // 1. JWT cache (app_metadata actualizado en setUserRole)
+  const roleFromJwt = user?.app_metadata?.role as string | undefined;
+  if (roleFromJwt) return roleFromJwt as AdminRole;
+
+  // 2. Fallback a DB (para admins anteriores a la migración)
+  if (user?.id) {
+    const adminDb = createAdminClient();
+    const { data } = await adminDb
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (data?.role) return data.role as AdminRole;
+  }
+
+  return "user";
 }
 
 // ── Stats ──────────────────────────────────────────────────────
@@ -54,7 +87,7 @@ export async function getAdminUsers(page = 1) {
   const [profilesResult, adminRowsResult, subsResult, authUsers] = await Promise.all([
     db
       .from("profiles")
-      .select("id, full_name, created_at", { count: "exact" })
+      .select("id, full_name, created_at, role", { count: "exact" })
       .order("created_at", { ascending: false })
       .range(offset, offset + USERS_PER_PAGE - 1),
     db.from("admins").select("user_id"),
@@ -77,6 +110,7 @@ export async function getAdminUsers(page = 1) {
     id: p.id as string,
     full_name: (p.full_name as string | null) ?? "—",
     email: emailMap.get(p.id as string) ?? "—",
+    role: ((p.role as string | null) ?? "user") as AdminRole,
     is_admin: adminSet.has(p.id as string),
     created_at: p.created_at as string,
     subscription: subMap.get(p.id as string) ?? null,

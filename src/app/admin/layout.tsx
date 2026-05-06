@@ -1,11 +1,19 @@
 import Link from "next/link";
-import { BookOpen, LayoutDashboard, Users, BookMarked, CreditCard, LogOut } from "lucide-react";
+import { BookOpen, LogOut } from "lucide-react";
 import { getCurrentUser } from "@/lib/queries";
+import { getAdminCurrentRole } from "@/lib/admin-queries";
 import { logout } from "@/app/actions";
 import { AdminNav } from "./admin-nav";
 
+const ROLE_LABEL: Record<string, string> = {
+  super_admin: "Super Admin",
+  admin: "Admin",
+  profesor: "Profesor",
+  user: "Usuario",
+};
+
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const user = await getCurrentUser();
+  const [user, role] = await Promise.all([getCurrentUser(), getAdminCurrentRole()]);
 
   return (
     <div className="min-h-screen flex bg-bg-primary">
@@ -22,7 +30,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
         {/* Nav */}
         <nav className="flex-1 py-4 px-3 flex flex-col gap-1">
-          <AdminNav />
+          <AdminNav role={role} />
         </nav>
 
         {/* User + logout */}
@@ -33,7 +41,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-xs font-medium text-text-primary truncate">{user?.name ?? "Admin"}</p>
-              <p className="text-[10px] text-text-tertiary truncate">{user?.email}</p>
+              <p className="text-[10px] text-gold/80 truncate">{ROLE_LABEL[role] ?? role}</p>
             </div>
           </div>
           <form action={logout}>

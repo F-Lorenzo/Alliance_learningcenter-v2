@@ -4,20 +4,26 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LayoutDashboard, Users, BookMarked, CreditCard } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { AdminRole } from "@/lib/admin-queries";
 
-const NAV = [
-  { href: "/admin", label: "Overview", icon: LayoutDashboard, exact: true },
-  { href: "/admin/cursos", label: "Cursos", icon: BookMarked, exact: false },
-  { href: "/admin/usuarios", label: "Usuarios", icon: Users, exact: false },
-  { href: "/admin/cobros", label: "Cobros", icon: CreditCard, exact: false },
+const NAV_ITEMS = [
+  { href: "/admin", label: "Overview", icon: LayoutDashboard, exact: true, roles: ["super_admin", "admin", "profesor"] },
+  { href: "/admin/cursos", label: "Cursos", icon: BookMarked, exact: false, roles: ["super_admin", "admin", "profesor"] },
+  { href: "/admin/usuarios", label: "Usuarios", icon: Users, exact: false, roles: ["super_admin", "admin"] },
+  { href: "/admin/cobros", label: "Cobros", icon: CreditCard, exact: false, roles: ["super_admin", "admin"] },
 ];
 
-export function AdminNav() {
+interface Props {
+  role: AdminRole;
+}
+
+export function AdminNav({ role }: Props) {
   const pathname = usePathname();
+  const visibleItems = NAV_ITEMS.filter((item) => item.roles.includes(role));
 
   return (
     <>
-      {NAV.map(({ href, label, icon: Icon, exact }) => {
+      {visibleItems.map(({ href, label, icon: Icon, exact }) => {
         const active = exact ? pathname === href : pathname.startsWith(href);
         return (
           <Link
