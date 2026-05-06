@@ -5,36 +5,48 @@ import { Search, SlidersHorizontal, AlertCircle } from "lucide-react";
 import { FilterSidebar, type Filters, type CategoryOption } from "@/components/filter-sidebar";
 import { CourseCard, CourseCardSkeleton } from "@/components/course-card";
 import { Button } from "@/components/ui/button";
-import type { Course } from "@/types";
+import type { Course, Category } from "@/types";
 
 const EMPTY_FILTERS: Filters = { category: "", role: "", instructor: "" };
 const PAGE_SIZE = 12;
 
 interface CatalogViewProps {
   courses: Course[];
+  allCategories?: Category[];
   isLoggedIn?: boolean;
 }
 
-export function CatalogView({ courses, isLoggedIn = false }: CatalogViewProps) {
+export function CatalogView({ courses, allCategories = [], isLoggedIn = false }: CatalogViewProps) {
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("newest");
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [page, setPage] = useState(1);
 
-  // Computa categorías con conteos reales a partir de los cursos cargados
+  // Computa conteos reales y cruza con todas las categorías de la DB
   const categoryOptions = useMemo<CategoryOption[]>(() => {
-    const map = new Map<string, { label: string; count: number }>();
+    // Conteos desde los cursos
+    const countMap = new Map<string, number>();
     courses.forEach((c) => {
       c.categories.forEach((catName) => {
-        if (!map.has(catName)) map.set(catName, { label: catName, count: 0 });
-        map.get(catName)!.count++;
+        countMap.set(catName, (countMap.get(catName) ?? 0) + 1);
       });
     });
-    return Array.from(map.entries())
-      .map(([label, { count }]) => ({ value: label, label, count }))
+
+    if (allCategories.length > 0) {
+      // Usa el orden de la DB, incluye categorías con 0 cursos
+      return allCategories.map((cat) => ({
+        value: cat.name,
+        label: cat.name,
+        count: countMap.get(cat.name) ?? 0,
+      }));
+    }
+
+    // Fallback: solo categorías presentes en los cursos
+    return Array.from(countMap.entries())
+      .map(([name, count]) => ({ value: name, label: name, count }))
       .sort((a, b) => a.label.localeCompare(b.label, "es"));
-  }, [courses]);
+  }, [courses, allCategories]);
 
   const filtered = useMemo(() => {
     let result = [...courses];
@@ -83,6 +95,12 @@ export function CatalogView({ courses, isLoggedIn = false }: CatalogViewProps) {
 
   const visible = filtered.slice(0, page * PAGE_SIZE);
   const hasMore = visible.length < filtered.length;
+
+  // Detecta si la categoría seleccionada existe pero no tiene cursos todavía
+  const selectedCategoryIsEmpty =
+    filters.category !== "" &&
+    filtered.length === 0 &&
+    categoryOptions.some((c) => c.value === filters.category && c.count === 0);
 
   const clearFilters = useCallback(() => {
     setFilters(EMPTY_FILTERS);
@@ -174,16 +192,35 @@ export function CatalogView({ courses, isLoggedIn = false }: CatalogViewProps) {
         <div className="flex-1 min-w-0">
           {visible.length === 0 ? (
             <div className="text-center py-20 flex flex-col items-center gap-4">
-              <AlertCircle className="w-12 h-12 text-text-tertiary" />
-              <p className="text-text-primary font-medium">
-                No encontramos módulos con esos filtros
-              </p>
-              <p className="text-sm text-text-secondary">
-                Probá ajustando los filtros o buscando otra cosa
-              </p>
-              <Button variant="secondary" onClick={clearFilters}>
-                Limpiar filtros
-              </Button>
+              {selectedCategoryIsEmpty ? (
+                <>
+                  <div className="w-16 h-16 rounded-full bg-bg-secondary border border-border-default flex items-center justify-center">
+                    <span className="text-2xl">🥋</span>
+                  </div>
+                  <p className="text-text-primary font-medium">Próximamente</p>
+                  <p className="text-sm text-text-secondary max-w-xs">
+                    Estamos preparando los módulos de{" "}
+                    <span className="text-gold font-medium">{filters.category}</span>.
+                    Volvé pronto.
+                  </p>
+                  <Button variant="secondary" onClick={clearFilters}>
+                    Ver todos los módulos
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <AlertCircle className="w-12 h-12 text-text-tertiary" />
+                  <p className="text-text-primary font-medium">
+                    No encontramos módulos con esos filtros
+                  </p>
+                  <p className="text-sm text-text-secondary">
+                    Probá ajustando los filtros o buscando otra cosa
+                  </p>
+                  <Button variant="secondary" onClick={clearFilters}>
+                    Limpiar filtros
+                  </Button>
+                </>
+              )}
             </div>
           ) : (
             <>
