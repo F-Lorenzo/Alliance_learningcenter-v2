@@ -1,5 +1,7 @@
 import { getAdminSubscriptions } from "@/lib/admin-queries";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Admin — Cobros" };
@@ -25,8 +27,16 @@ const PLAN_LABEL: Record<string, string> = {
   yearly: "Anual",
 };
 
-export default async function CobrosPage() {
-  const subs = await getAdminSubscriptions();
+interface Props {
+  searchParams: Promise<{ page?: string }>;
+}
+
+export default async function CobrosPage({ searchParams }: Props) {
+  const { page: pageParam } = await searchParams;
+  const currentPage = Math.max(1, parseInt(pageParam ?? "1", 10));
+
+  const { subscriptions: subs, total, perPage } = await getAdminSubscriptions(currentPage);
+  const totalPages = Math.ceil(total / perPage);
   const active = subs.filter((s) => s.status === "active").length;
 
   return (
@@ -35,7 +45,7 @@ export default async function CobrosPage() {
         <div>
           <h1 className="text-2xl font-medium text-text-primary">Cobros</h1>
           <p className="text-sm text-text-secondary mt-1">
-            {subs.length} suscripciones · {active} activas
+            {total} suscripciones · {active} activas en esta página
           </p>
         </div>
       </div>
@@ -117,6 +127,31 @@ export default async function CobrosPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Paginación */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 mt-6">
+          {currentPage > 1 && (
+            <Link
+              href={`/admin/cobros?page=${currentPage - 1}`}
+              className="flex items-center gap-1 px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors border border-border-default rounded-lg hover:bg-bg-secondary"
+            >
+              <ChevronLeft className="w-4 h-4" /> Anterior
+            </Link>
+          )}
+          <span className="text-sm text-text-tertiary px-3">
+            {currentPage} / {totalPages}
+          </span>
+          {currentPage < totalPages && (
+            <Link
+              href={`/admin/cobros?page=${currentPage + 1}`}
+              className="flex items-center gap-1 px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors border border-border-default rounded-lg hover:bg-bg-secondary"
+            >
+              Siguiente <ChevronRight className="w-4 h-4" />
+            </Link>
+          )}
+        </div>
+      )}
     </div>
   );
 }
