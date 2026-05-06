@@ -1,6 +1,8 @@
 import { getAdminUsers } from "@/lib/admin-queries";
 import { toggleAdminRole } from "@/app/admin/actions";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Admin — Usuarios" };
@@ -10,7 +12,6 @@ const STATUS_STYLE: Record<string, string> = {
   trialing: "bg-info/15 text-info",
   past_due: "bg-warning/15 text-warning",
   canceled: "bg-danger/15 text-danger",
-  past_due_label: "Pago pendiente",
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -25,15 +26,25 @@ const PLAN_LABEL: Record<string, string> = {
   yearly: "Anual",
 };
 
-export default async function UsuariosPage() {
-  const users = await getAdminUsers();
+interface Props {
+  searchParams: Promise<{ page?: string }>;
+}
+
+export default async function UsuariosPage({ searchParams }: Props) {
+  const { page: pageParam } = await searchParams;
+  const currentPage = Math.max(1, parseInt(pageParam ?? "1", 10));
+
+  const { users, total, perPage } = await getAdminUsers(currentPage);
+  const totalPages = Math.ceil(total / perPage);
 
   return (
     <div className="p-8">
       <div className="mb-6 flex items-baseline justify-between">
         <div>
           <h1 className="text-2xl font-medium text-text-primary">Usuarios</h1>
-          <p className="text-sm text-text-secondary mt-1">{users.length} registrados</p>
+          <p className="text-sm text-text-secondary mt-1">
+            {total} registrados · página {currentPage} de {Math.max(1, totalPages)}
+          </p>
         </div>
       </div>
 
@@ -128,6 +139,31 @@ export default async function UsuariosPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Paginación */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 mt-6">
+          {currentPage > 1 && (
+            <Link
+              href={`/admin/usuarios?page=${currentPage - 1}`}
+              className="flex items-center gap-1 px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors border border-border-default rounded-lg hover:bg-bg-secondary"
+            >
+              <ChevronLeft className="w-4 h-4" /> Anterior
+            </Link>
+          )}
+          <span className="text-sm text-text-tertiary px-3">
+            {currentPage} / {totalPages}
+          </span>
+          {currentPage < totalPages && (
+            <Link
+              href={`/admin/usuarios?page=${currentPage + 1}`}
+              className="flex items-center gap-1 px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors border border-border-default rounded-lg hover:bg-bg-secondary"
+            >
+              Siguiente <ChevronRight className="w-4 h-4" />
+            </Link>
+          )}
+        </div>
+      )}
     </div>
   );
 }

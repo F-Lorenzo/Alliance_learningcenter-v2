@@ -48,17 +48,23 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    // Verificar en tabla admins (sin recursión RLS)
-    const { data: adminRecord } = await supabase
-      .from("admins")
-      .select("user_id")
-      .eq("user_id", user.id)
-      .maybeSingle();
+    // Verificar admin desde app_metadata del JWT (sin query a DB).
+    // app_metadata.is_admin se setea en toggleAdminRole() via admin API.
+    // Fallback: consultar tabla admins para admins creados antes de esta migración.
+    const isAdminByJwt = user.app_metadata?.is_admin === true;
 
-    if (!adminRecord) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/dashboard";
-      return NextResponse.redirect(url);
+    if (!isAdminByJwt) {
+      const { data: adminRecord } = await supabase
+        .from("admins")
+        .select("user_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (!adminRecord) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/dashboard";
+        return NextResponse.redirect(url);
+      }
     }
   }
 

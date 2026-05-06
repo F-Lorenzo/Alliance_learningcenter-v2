@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   Play, Pause, Volume2, VolumeX, Maximize,
   ChevronLeft, ChevronRight, CheckCircle, Circle, RotateCcw, RotateCw, Loader2,
+  AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,40 @@ function fmt(s: number) {
   return `${m}:${sec.toString().padStart(2, "0")}`;
 }
 
+/** Clave para guardar la URL firmada en sessionStorage */
+function sessionKey(lessonId: string) {
+  return `signed_url_${lessonId}`;
+}
+
+/** Lee una URL firmada cacheada en sessionStorage (si aún no expiró) */
+function getCachedUrl(lessonId: string): string | null {
+  try {
+    const raw = sessionStorage.getItem(sessionKey(lessonId));
+    if (!raw) return null;
+    const { url, expiresAt } = JSON.parse(raw) as { url: string; expiresAt: number };
+    // Descartar si quedan menos de 10 minutos de validez
+    if (Date.now() > expiresAt - 10 * 60 * 1000) {
+      sessionStorage.removeItem(sessionKey(lessonId));
+      return null;
+    }
+    return url;
+  } catch {
+    return null;
+  }
+}
+
+/** Guarda la URL firmada en sessionStorage con su tiempo de expiración */
+function setCachedUrl(lessonId: string, url: string, ttlSeconds = 7200) {
+  try {
+    sessionStorage.setItem(
+      sessionKey(lessonId),
+      JSON.stringify({ url, expiresAt: Date.now() + ttlSeconds * 1000 })
+    );
+  } catch {
+    // sessionStorage puede estar bloqueado en modo privado
+  }
+}
+
 export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, userEmail, initialProgress = 0 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
@@ -51,11 +86,13 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
   const [completed, setCompleted] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [watermarkPos, setWatermarkPos] = useState({ top: "10%", right: "2%" });
+  const [progressError, setProgressError] = useState(false);
   const controlsTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastSavedRef = useRef<number>(0);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Guardar progreso en la API
+  // ── Guardar progreso en la API ────────────────────────────────
   const saveProgress = useCallback((seconds: number, isCompleted?: boolean) => {
     if (!lesson.id) return;
     fetch("/api/progress", {
@@ -66,41 +103,92 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
         watched_seconds: Math.floor(seconds),
         completed: isCompleted ?? completed,
       }),
-    }).catch(() => {});
+    })
+      .then((r) => {
+        if (!r.ok) {
+          console.error("[progress] Error al guardar progreso:", r.status);
+          setProgressError(true);
+          // Ocultar el banner de error tras 5 segundos
+          setTimeout(() => setProgressError(false), 5000);
+        }
+      })
+      .catch(() => {
+        setProgressError(true);
+        setTimeout(() => setProgressError(false), 5000);
+      });
     lastSavedRef.current = seconds;
   }, [lesson.id, completed]);
 
-  // Obtener URL firmada de R2 al montar.
-  // Se pasa lesson_id (nunca la key directa) — el servidor resuelve
-  // la key y valida el acceso antes de generar la URL firmada.
+  // ── Obtener URL firmada de R2 al montar ───────────────────────
+  // 1. Primero busca en sessionStorage (evita request si la URL sigue vigente)
+  // 2. Si no hay cache, fetcha con AbortController para cancelar si la lección cambia
   useEffect(() => {
-    if (!lesson.video_url) return; // sin video asignado, no hay nada que cargar
+    if (!lesson.video_url) return;
+
+    // Verificar cache primero
+    const cached = getCachedUrl(lesson.id);
+    if (cached) {
+      setSignedUrl(cached);
+      return;
+    }
+
+    // Cancelar request anterior si el usuario navegó rápido entre lecciones
+    if (abortControllerRef.current) abortControllerRef.current.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setLoadingUrl(true);
     setSignedUrl(null);
-    fetch(`/api/videos/signed-url?lesson_id=${encodeURIComponent(lesson.id)}`)
+
+    fetch(`/api/videos/signed-url?lesson_id=${encodeURIComponent(lesson.id)}`, {
+      signal: controller.signal,
+    })
       .then((r) => r.json())
       .then((data) => {
-        if (data.url) setSignedUrl(data.url);
+        if (data.url) {
+          setSignedUrl(data.url);
+          setCachedUrl(lesson.id, data.url, 7200); // cachear 2 horas
+        }
       })
-      .catch(() => {})
+      .catch((err) => {
+        if (err.name !== "AbortError") console.error("[signed-url]", err);
+      })
       .finally(() => setLoadingUrl(false));
+
+    return () => controller.abort();
   }, [lesson.id, lesson.video_url]);
 
-  // Heartbeat: guardar progreso cada 10 segundos mientras reproduce
+  // ── Heartbeat: 30s (↓ desde 10s) + pausa si la pestaña no es visible ──
   useEffect(() => {
     if (!playing) {
       if (heartbeatRef.current) clearInterval(heartbeatRef.current);
       return;
     }
+
     heartbeatRef.current = setInterval(() => {
+      // No guardar si la pestaña está en segundo plano
+      if (document.visibilityState === "hidden") return;
       if (videoRef.current) saveProgress(videoRef.current.currentTime);
-    }, 10000);
+    }, 30_000); // 30 segundos (era 10s = 360 req/hora → ahora 120 req/hora)
+
     return () => {
       if (heartbeatRef.current) clearInterval(heartbeatRef.current);
     };
   }, [playing, saveProgress]);
 
-  // Guardar al desmontar (cambio de lección o cierre)
+  // ── Pausa adicional del heartbeat cuando la pestaña se oculta ──
+  useEffect(() => {
+    function handleVisibilityChange() {
+      if (document.visibilityState === "hidden") {
+        if (heartbeatRef.current) clearInterval(heartbeatRef.current);
+      }
+      // Al volver a visible, el heartbeat se reactiva con el efecto de playing
+    }
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, []);
+
+  // ── Guardar al desmontar (cambio de lección o cierre) ─────────
   useEffect(() => {
     return () => {
       if (heartbeatRef.current) clearInterval(heartbeatRef.current);
@@ -110,19 +198,19 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
     };
   }, [saveProgress]);
 
-  // Sincronizar velocidad
+  // ── Sincronizar velocidad ─────────────────────────────────────
   useEffect(() => {
     if (videoRef.current) videoRef.current.playbackRate = speed;
   }, [speed]);
 
-  // Auto-hide controles
+  // ── Auto-hide controles ───────────────────────────────────────
   const resetControlsTimer = useCallback(() => {
     setShowControls(true);
     if (controlsTimeout.current) clearTimeout(controlsTimeout.current);
     controlsTimeout.current = setTimeout(() => setShowControls(false), 3000);
   }, []);
 
-  // Watermark se mueve cada 30s
+  // ── Watermark se mueve cada 30s ───────────────────────────────
   useEffect(() => {
     const positions = [
       { top: "8%", right: "2%" }, { top: "8%", right: "30%" },
@@ -239,7 +327,7 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
                     </div>
                     <p className="text-white/40 text-sm mt-4">{lesson.title}</p>
                     {!lesson.video_url && (
-                      <p className="text-white/20 text-xs mt-2">Video no disponible</p>
+                      <p className="text-white/20 text-xs mt-2">Esta técnica aún no tiene video disponible</p>
                     )}
                   </>
                 )}
@@ -254,6 +342,14 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
               style={watermarkPos}
             >
               {userEmail}
+            </div>
+          )}
+
+          {/* Banner de error al guardar progreso */}
+          {progressError && (
+            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 bg-black/80 border border-white/10 text-white/70 text-xs px-3 py-1.5 rounded-full pointer-events-none">
+              <AlertCircle className="w-3.5 h-3.5 text-warning shrink-0" />
+              No se pudo guardar el progreso
             </div>
           )}
 

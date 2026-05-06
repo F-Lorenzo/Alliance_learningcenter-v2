@@ -73,13 +73,14 @@ export async function getFreeCourses(): Promise<Course[]> {
   return (data ?? []).map((r) => transformCourse(r as Record<string, unknown>));
 }
 
-export async function getCourses(): Promise<Course[]> {
+export async function getCourses(limit = 100): Promise<Course[]> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("courses")
     .select(COURSE_SELECT)
     .eq("is_published", true)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(limit); // evita cargar miles de cursos sin control
   return (data ?? []).map((r) => transformCourse(r as Record<string, unknown>));
 }
 
@@ -152,23 +153,45 @@ export async function getLessonProgress(userId: string, lessonId: string) {
 export async function getLessonWithCourse(courseSlug: string, lessonSlug: string) {
   const supabase = await createClient();
 
-  // Traer el curso con todas sus lecciones (para el sidebar)
-  const { data: course } = await supabase
-    .from("courses")
-    .select("id, slug, title, lessons(id, slug, title, duration, is_free, sort_order, video_url)")
-    .eq("slug", courseSlug)
-    .eq("is_published", true)
-    .maybeSingle();
+  // Dos queries en paralelo:
+  // 1. Curso + lecciones para el sidebar (sin video_url → menos datos)
+  // 2. Lección específica con video_url para el player
+  const [courseResult, lessonResult] = await Promise.all([
+    supabase
+      .from("courses")
+      .select("id, slug, title, lessons(id, slug, title, duration, is_free, sort_order)")
+      .eq("slug", courseSlug)
+      .eq("is_published", true)
+      .maybeSingle(),
+    supabase
+      .from("lessons")
+      .select("id, slug, title, duration, is_free, sort_order, video_url, course_id")
+      .eq("slug", lessonSlug)
+      .maybeSingle(),
+  ]);
 
-  if (!course) return null;
+  const course = courseResult.data;
+  const lessonRaw = lessonResult.data;
+
+  if (!course || !lessonRaw) return null;
+
+  // Verificar que la lección pertenece al curso correcto
+  if (lessonRaw.course_id !== course.id) return null;
 
   const lessons = (course.lessons as Array<{
     id: string; slug: string; title: string; duration: number;
-    is_free: boolean; sort_order: number; video_url: string | null;
+    is_free: boolean; sort_order: number;
   }>).sort((a, b) => a.sort_order - b.sort_order);
 
-  const lesson = lessons.find((l) => l.slug === lessonSlug) ?? null;
-  if (!lesson) return null;
+  const lesson = {
+    id: lessonRaw.id as string,
+    slug: lessonRaw.slug as string,
+    title: lessonRaw.title as string,
+    duration: (lessonRaw.duration as number) ?? 0,
+    is_free: lessonRaw.is_free as boolean,
+    sort_order: lessonRaw.sort_order as number,
+    video_url: (lessonRaw.video_url as string | null) ?? null,
+  };
 
   return { course, lessons, lesson };
 }

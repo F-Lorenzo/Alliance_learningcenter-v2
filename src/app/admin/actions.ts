@@ -171,10 +171,20 @@ export async function deleteLesson(lessonId: string, courseId: string) {
 
 export async function toggleAdminRole(userId: string, current: boolean) {
   const db = createAdminClient();
+  const makeAdmin = !current;
+
+  // 1. Actualizar tabla admins
   if (current) {
     await db.from("admins").delete().eq("user_id", userId);
   } else {
     await db.from("admins").insert({ user_id: userId });
   }
+
+  // 2. Sincronizar app_metadata en el JWT para que el proxy no haga
+  //    una query a DB en cada request de este usuario.
+  await db.auth.admin.updateUserById(userId, {
+    app_metadata: { is_admin: makeAdmin },
+  });
+
   revalidatePath("/admin/usuarios");
 }

@@ -1,4 +1,27 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+// ── Helpers ────────────────────────────────────────────────────
+
+/**
+ * Obtiene TODOS los usuarios de auth paginando correctamente.
+ * Reemplaza el patrón { perPage: 1000 } que falla con más de 1000 usuarios.
+ */
+async function fetchAllAuthUsers(db: ReturnType<typeof createAdminClient>) {
+  const allUsers: Array<{ id: string; email?: string }> = [];
+  let page = 1;
+  const perPage = 100;
+
+  while (true) {
+    const { data, error } = await db.auth.admin.listUsers({ page, perPage });
+    if (error || !data?.users?.length) break;
+    allUsers.push(...data.users.map((u) => ({ id: u.id, email: u.email })));
+    if (data.users.length < perPage) break; // última página
+    page++;
+  }
+
+  return allUsers;
+}
 
 // ── Stats ──────────────────────────────────────────────────────
 
@@ -7,10 +30,7 @@ export async function getAdminStats() {
 
   const [users, subs, courses, lessons] = await Promise.all([
     db.from("profiles").select("id", { count: "exact", head: true }),
-    db
-      .from("subscriptions")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "active"),
+    db.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "active"),
     db.from("courses").select("id", { count: "exact", head: true }),
     db.from("lessons").select("id", { count: "exact", head: true }),
   ]);
@@ -25,32 +45,36 @@ export async function getAdminStats() {
 
 // ── Usuarios ───────────────────────────────────────────────────
 
-export async function getAdminUsers() {
+const USERS_PER_PAGE = 50;
+
+export async function getAdminUsers(page = 1) {
   const db = createAdminClient();
+  const offset = (page - 1) * USERS_PER_PAGE;
 
-  const { data: profiles } = await db
-    .from("profiles")
-    .select("id, full_name, created_at")
-    .order("created_at", { ascending: false });
+  // Las 4 fuentes de datos se consultan EN PARALELO para eliminar el N+1
+  const [profilesResult, adminRowsResult, subsResult, authUsers] = await Promise.all([
+    db
+      .from("profiles")
+      .select("id, full_name, created_at", { count: "exact" })
+      .order("created_at", { ascending: false })
+      .range(offset, offset + USERS_PER_PAGE - 1),
+    db.from("admins").select("user_id"),
+    db.from("subscriptions")
+      .select("user_id, status, plan, current_period_end")
+      .in("status", ["active", "trialing", "past_due"]),
+    fetchAllAuthUsers(db),
+  ]);
 
-  if (!profiles?.length) return [];
+  const profiles = profilesResult.data ?? [];
+  const total = profilesResult.count ?? 0;
 
-  // Emails desde auth
-  const { data: authUsers } = await db.auth.admin.listUsers({ perPage: 1000 });
-  const emailMap = new Map(authUsers?.users?.map((u) => [u.id, u.email]) ?? []);
+  if (!profiles.length) return { users: [], total, page, perPage: USERS_PER_PAGE };
 
-  // Admins desde tabla admins (sin recursión)
-  const { data: adminRows } = await db.from("admins").select("user_id");
-  const adminSet = new Set(adminRows?.map((a) => a.user_id as string) ?? []);
+  const emailMap = new Map(authUsers.map((u) => [u.id, u.email ?? "—"]));
+  const adminSet = new Set(adminRowsResult.data?.map((a) => a.user_id as string) ?? []);
+  const subMap = new Map(subsResult.data?.map((s) => [s.user_id as string, s]) ?? []);
 
-  // Suscripciones
-  const { data: subs } = await db
-    .from("subscriptions")
-    .select("user_id, status, plan, current_period_end")
-    .in("status", ["active", "trialing", "past_due"]);
-  const subMap = new Map(subs?.map((s) => [s.user_id, s]) ?? []);
-
-  return profiles.map((p) => ({
+  const users = profiles.map((p) => ({
     id: p.id as string,
     full_name: (p.full_name as string | null) ?? "—",
     email: emailMap.get(p.id as string) ?? "—",
@@ -58,6 +82,8 @@ export async function getAdminUsers() {
     created_at: p.created_at as string,
     subscription: subMap.get(p.id as string) ?? null,
   }));
+
+  return { users, total, page, perPage: USERS_PER_PAGE };
 }
 
 // ── Cursos ─────────────────────────────────────────────────────
@@ -132,49 +158,48 @@ export async function getAdminCourse(id: string) {
 
 export async function getAdminCategories() {
   const db = createAdminClient();
-  const { data } = await db
-    .from("categories")
-    .select("id, name, slug")
-    .order("sort_order");
+  const { data } = await db.from("categories").select("id, name, slug").order("sort_order");
   return data ?? [];
 }
 
 export async function getAdminInstructors() {
   const db = createAdminClient();
-  const { data } = await db
-    .from("instructors")
-    .select("id, name, belt")
-    .order("sort_order");
+  const { data } = await db.from("instructors").select("id, name, belt").order("sort_order");
   return data ?? [];
 }
 
 // ── Cobros ─────────────────────────────────────────────────────
 
-export async function getAdminSubscriptions() {
+export async function getAdminSubscriptions(page = 1) {
   const db = createAdminClient();
+  const perPage = 50;
+  const offset = (page - 1) * perPage;
 
-  const { data: subs } = await db
+  const { data: subs, count } = await db
     .from("subscriptions")
     .select(
-      "id, user_id, status, plan, mp_subscription_id, current_period_start, current_period_end, created_at"
+      "id, user_id, status, plan, mp_subscription_id, current_period_start, current_period_end, created_at",
+      { count: "exact" }
     )
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .range(offset, offset + perPage - 1);
 
-  if (!subs?.length) return [];
+  if (!subs?.length) return { subscriptions: [], total: count ?? 0, page, perPage };
 
   const userIds = [...new Set(subs.map((s) => s.user_id as string))];
-  const { data: profiles } = await db
-    .from("profiles")
-    .select("id, full_name")
-    .in("id", userIds);
 
-  const { data: authUsers } = await db.auth.admin.listUsers({ perPage: 1000 });
-  const emailMap = new Map(authUsers?.users?.map((u) => [u.id, u.email]) ?? []);
+  // Profiles y auth users en paralelo
+  const [profilesResult, authUsers] = await Promise.all([
+    db.from("profiles").select("id, full_name").in("id", userIds),
+    fetchAllAuthUsers(db),
+  ]);
+
+  const emailMap = new Map(authUsers.map((u) => [u.id, u.email ?? "—"]));
   const nameMap = new Map(
-    profiles?.map((p) => [p.id as string, p.full_name as string | null]) ?? []
+    profilesResult.data?.map((p) => [p.id as string, p.full_name as string | null]) ?? []
   );
 
-  return subs.map((s) => ({
+  const subscriptions = subs.map((s) => ({
     id: s.id as string,
     user_id: s.user_id as string,
     user_name: nameMap.get(s.user_id as string) ?? "—",
@@ -185,4 +210,6 @@ export async function getAdminSubscriptions() {
     current_period_end: s.current_period_end as string | null,
     created_at: s.created_at as string,
   }));
+
+  return { subscriptions, total: count ?? 0, page, perPage };
 }
