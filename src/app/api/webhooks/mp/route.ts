@@ -3,10 +3,16 @@ import { MercadoPagoConfig, PreApproval } from "mercadopago";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createHmac } from "crypto";
 
-// Verifica la firma HMAC que MP envía en el header x-signature
-function verifySignature(request: Request, rawBody: string, xSignature: string, xRequestId: string): boolean {
+// Verifica la firma HMAC que MP envía en el header x-signature.
+// Se verifica en TODOS los entornos si MP_WEBHOOK_SECRET está configurado.
+function verifySignature(xSignature: string, xRequestId: string): boolean {
   const secret = process.env.MP_WEBHOOK_SECRET;
-  if (!secret) return false;
+  if (!secret) {
+    // Sin secret configurado: loguear advertencia y rechazar.
+    console.warn("[webhooks/mp] MP_WEBHOOK_SECRET no configurado. Rechazando webhook.");
+    return false;
+  }
+  if (!xSignature || !xRequestId) return false;
 
   // Formato: "ts=<timestamp>,v1=<hash>"
   const parts = Object.fromEntries(xSignature.split(",").map((p) => p.split("=")));
@@ -16,44 +22,82 @@ function verifySignature(request: Request, rawBody: string, xSignature: string, 
 
   const manifest = `id:${xRequestId};request-id:${xRequestId};ts:${ts};`;
   const hash = createHmac("sha256", secret).update(manifest).digest("hex");
-
   return hash === v1;
 }
 
 export async function POST(request: Request) {
+  const db = createAdminClient();
+  const rawBody = await request.text();
+  const xSignature = request.headers.get("x-signature") ?? "";
+  const xRequestId = request.headers.get("x-request-id") ?? "";
+
+  // ── Verificar firma HMAC en todos los entornos ──────────────────────────
+  const valid = verifySignature(xSignature, xRequestId);
+  if (!valid) {
+    console.error("[webhooks/mp] Firma HMAC inválida o secret faltante.");
+    return NextResponse.json({ error: "Firma inválida" }, { status: 401 });
+  }
+
+  // ── Parsear payload ─────────────────────────────────────────────────────
+  let event: Record<string, unknown>;
   try {
-    const rawBody = await request.text();
-    const xSignature = request.headers.get("x-signature") ?? "";
-    const xRequestId = request.headers.get("x-request-id") ?? "";
+    event = JSON.parse(rawBody);
+  } catch {
+    return NextResponse.json({ error: "Payload inválido" }, { status: 400 });
+  }
 
-    // En producción, verificar siempre. En sandbox la firma puede venir vacía.
-    const isProduction = !process.env.MP_ACCESS_TOKEN?.startsWith("TEST-");
-    if (isProduction && xSignature) {
-      const valid = verifySignature(request, rawBody, xSignature, xRequestId);
-      if (!valid) {
-        return NextResponse.json({ error: "Firma inválida" }, { status: 401 });
-      }
-    }
+  // ── Deduplicación: ignorar si ya procesamos este request_id ────────────
+  const { data: existing } = await db
+    .from("webhook_events")
+    .select("id, status")
+    .eq("event_id", xRequestId)
+    .maybeSingle();
 
-    const event = JSON.parse(rawBody);
+  if (existing) {
+    // Ya procesado (o en proceso): idempotente, responder 200.
+    return NextResponse.json({ ok: true, duplicate: true });
+  }
 
-    // Solo procesamos eventos de suscripciones
-    if (event.type !== "subscription_preapproval") {
-      return NextResponse.json({ ok: true });
-    }
+  // Registrar el evento como "pending" para auditoría
+  await db.from("webhook_events").insert({
+    event_id: xRequestId,
+    type: String(event.type ?? "unknown"),
+    status: "pending",
+    payload: event,
+  });
 
-    const subscriptionId = event.data?.id;
-    if (!subscriptionId) return NextResponse.json({ ok: true });
+  // ── Solo procesamos eventos de suscripciones ───────────────────────────
+  if (event.type !== "subscription_preapproval") {
+    await db
+      .from("webhook_events")
+      .update({ status: "processed", processed_at: new Date().toISOString() })
+      .eq("event_id", xRequestId);
+    return NextResponse.json({ ok: true });
+  }
 
+  const subscriptionId = (event.data as Record<string, unknown>)?.id as string | undefined;
+  if (!subscriptionId) {
+    await db
+      .from("webhook_events")
+      .update({ status: "failed", error_message: "subscriptionId faltante" })
+      .eq("event_id", xRequestId);
+    return NextResponse.json({ error: "subscriptionId faltante" }, { status: 422 });
+  }
+
+  try {
     // Consultar el estado real de la suscripción en MP
-    const client = new MercadoPagoConfig({
-      accessToken: process.env.MP_ACCESS_TOKEN!,
-    });
+    const client = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN! });
     const preApproval = new PreApproval(client);
     const sub = await preApproval.get({ id: subscriptionId });
 
     const userId = sub.external_reference;
-    if (!userId) return NextResponse.json({ ok: true });
+    if (!userId) {
+      await db
+        .from("webhook_events")
+        .update({ status: "failed", error_message: "external_reference vacío" })
+        .eq("event_id", xRequestId);
+      return NextResponse.json({ error: "Sin userId" }, { status: 422 });
+    }
 
     // Mapear estado MP → estado interno
     const statusMap: Record<string, string> = {
@@ -64,8 +108,7 @@ export async function POST(request: Request) {
     };
     const status = statusMap[sub.status ?? ""] ?? "inactive";
 
-    // Calcular período (MP no devuelve period_end directamente en preapproval)
-    // Lo calculamos según la frecuencia desde la última fecha de cargo
+    // Calcular período desde la última fecha de cargo
     const lastModified = sub.last_modified ? new Date(sub.last_modified) : new Date();
     const frequency = sub.auto_recurring?.frequency ?? 1;
     const frequencyType = sub.auto_recurring?.frequency_type ?? "months";
@@ -75,18 +118,16 @@ export async function POST(request: Request) {
     } else {
       periodEnd.setFullYear(periodEnd.getFullYear() + frequency);
     }
-
     const plan = frequency >= 12 ? "yearly" : "monthly";
 
     // Upsert en Supabase usando service role (bypasea RLS)
-    const db = createAdminClient();
-    const { data: existing } = await db
+    const { data: existingSub } = await db
       .from("subscriptions")
       .select("id")
       .eq("mp_subscription_id", subscriptionId)
       .maybeSingle();
 
-    if (existing) {
+    if (existingSub) {
       await db
         .from("subscriptions")
         .update({
@@ -106,10 +147,23 @@ export async function POST(request: Request) {
       });
     }
 
+    // Marcar como procesado
+    await db
+      .from("webhook_events")
+      .update({ status: "processed", processed_at: new Date().toISOString() })
+      .eq("event_id", xRequestId);
+
     return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error("[webhooks/mp]", err);
-    // Devolvemos 200 igual para que MP no reintente indefinidamente
-    return NextResponse.json({ ok: true });
+    const errorMsg = err instanceof Error ? err.message : JSON.stringify(err);
+    console.error("[webhooks/mp] Error procesando evento:", errorMsg);
+
+    await db
+      .from("webhook_events")
+      .update({ status: "failed", error_message: errorMsg })
+      .eq("event_id", xRequestId);
+
+    // Retornar 500 para que MP reintente automáticamente
+    return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }
 }

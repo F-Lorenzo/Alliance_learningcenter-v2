@@ -80,8 +80,11 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ init_point: result.init_point });
   } catch (err: unknown) {
-    const detail = serializeError(err);
-    console.error("[checkout/mp]", detail);
-    return NextResponse.json({ error: `Error MP: ${detail}` }, { status: 500 });
+    // Loguear detalle completo solo en servidor, nunca al cliente
+    console.error("[checkout/mp]", serializeError(err));
+    return NextResponse.json(
+      { error: "Error al procesar el pago. Por favor intentá nuevamente en unos minutos." },
+      { status: 500 }
+    );
   }
 }

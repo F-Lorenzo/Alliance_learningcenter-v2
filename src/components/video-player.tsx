@@ -70,19 +70,21 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
     lastSavedRef.current = seconds;
   }, [lesson.id, completed]);
 
-  // Obtener URL firmada de R2 al montar
+  // Obtener URL firmada de R2 al montar.
+  // Se pasa lesson_id (nunca la key directa) — el servidor resuelve
+  // la key y valida el acceso antes de generar la URL firmada.
   useEffect(() => {
-    if (!lesson.video_url) return;
+    if (!lesson.video_url) return; // sin video asignado, no hay nada que cargar
     setLoadingUrl(true);
     setSignedUrl(null);
-    fetch(`/api/videos/signed-url?key=${encodeURIComponent(lesson.video_url)}`)
+    fetch(`/api/videos/signed-url?lesson_id=${encodeURIComponent(lesson.id)}`)
       .then((r) => r.json())
       .then((data) => {
         if (data.url) setSignedUrl(data.url);
       })
       .catch(() => {})
       .finally(() => setLoadingUrl(false));
-  }, [lesson.video_url]);
+  }, [lesson.id, lesson.video_url]);
 
   // Heartbeat: guardar progreso cada 10 segundos mientras reproduce
   useEffect(() => {
