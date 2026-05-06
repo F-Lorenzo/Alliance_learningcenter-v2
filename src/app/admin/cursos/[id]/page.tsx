@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft, Trash2 } from "lucide-react";
+import { ChevronLeft, Trash2, VideoIcon } from "lucide-react";
 import { getAdminCourse, getAdminCategories, getAdminInstructors } from "@/lib/admin-queries";
 import { updateCourse, deleteCourse, createLesson, updateLesson, deleteLesson } from "@/app/admin/actions";
 import { CourseForm } from "../course-form";
@@ -9,6 +9,7 @@ import type { Metadata } from "next";
 
 interface Props {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ created?: string }>;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -17,8 +18,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: course ? `Admin — ${course.title}` : "Admin — Curso" };
 }
 
-export default async function EditCursoPage({ params }: Props) {
-  const { id } = await params;
+export default async function EditCursoPage({ params, searchParams }: Props) {
+  const [{ id }, { created }] = await Promise.all([params, searchParams]);
+  const justCreated = created === "1";
 
   const [course, categories, instructors] = await Promise.all([
     getAdminCourse(id),
@@ -45,6 +47,19 @@ export default async function EditCursoPage({ params }: Props) {
 
   return (
     <div className="p-8">
+      {/* Banner de recién creado */}
+      {justCreated && (
+        <div className="mb-6 flex items-start gap-3 bg-gold/10 border border-gold/30 rounded-xl px-5 py-4">
+          <VideoIcon className="w-5 h-5 text-gold shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-gold">¡Curso creado correctamente!</p>
+            <p className="text-xs text-text-secondary mt-0.5">
+              Ahora podés agregar las lecciones y videos usando el panel de la derecha.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-8">
         <div>
           <Link
