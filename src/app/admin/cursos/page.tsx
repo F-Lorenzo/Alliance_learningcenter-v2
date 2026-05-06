@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil } from "lucide-react";
 import { getAdminCourses } from "@/lib/admin-queries";
 import { togglePublished, deleteCourse } from "@/app/admin/actions";
+import { DeleteCourseButton } from "./delete-course-button";
 import { cn } from "@/lib/utils";
 import type { Metadata } from "next";
 
@@ -116,24 +117,11 @@ export default async function CursosPage() {
                         <Pencil className="w-3.5 h-3.5" />
                         Editar
                       </Link>
-                      <form
-                        action={async () => {
-                          "use server";
-                          await deleteCourse(c.id);
-                        }}
-                      >
-                        <button
-                          type="submit"
-                          onClick={(e) => {
-                            if (!confirm(`¿Eliminar "${c.title}"? Esta acción no se puede deshacer.`)) {
-                              e.preventDefault();
-                            }
-                          }}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-text-tertiary hover:text-danger hover:bg-danger/10 rounded-md transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </form>
+                      <DeleteCourseButton
+                        courseId={c.id}
+                        courseTitle={c.title}
+                        onDelete={deleteCourse}
+                      />
                     </div>
                   </td>
                 </tr>
