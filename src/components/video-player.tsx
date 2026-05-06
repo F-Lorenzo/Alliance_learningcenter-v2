@@ -91,8 +91,9 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastSavedRef = useRef<number>(0);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const seekSaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Guardar progreso en la API ────────────────────────────────
+  // ── Guardar progreso via fetch (mientras la página sigue abierta) ─
   const saveProgress = useCallback((seconds: number, isCompleted?: boolean) => {
     if (!lesson.id) return;
     fetch("/api/progress", {
@@ -108,7 +109,6 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
         if (!r.ok) {
           console.error("[progress] Error al guardar progreso:", r.status);
           setProgressError(true);
-          // Ocultar el banner de error tras 5 segundos
           setTimeout(() => setProgressError(false), 5000);
         }
       })
@@ -117,6 +117,21 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
         setTimeout(() => setProgressError(false), 5000);
       });
     lastSavedRef.current = seconds;
+  }, [lesson.id, completed]);
+
+  // ── Guardar via sendBeacon (garantizado incluso al cerrar el browser) ──
+  // sendBeacon no puede cancelarse ni falla por cierre de pestaña.
+  const saveProgressBeacon = useCallback((seconds: number, isCompleted?: boolean) => {
+    if (!lesson.id || seconds <= 5) return;
+    const payload = JSON.stringify({
+      lesson_id: lesson.id,
+      watched_seconds: Math.floor(seconds),
+      completed: isCompleted ?? completed,
+    });
+    navigator.sendBeacon(
+      "/api/progress",
+      new Blob([payload], { type: "application/json" })
+    );
   }, [lesson.id, completed]);
 
   // ── Obtener URL firmada de R2 al montar ───────────────────────
@@ -158,7 +173,9 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
     return () => controller.abort();
   }, [lesson.id, lesson.video_url]);
 
-  // ── Heartbeat: 30s (↓ desde 10s) + pausa si la pestaña no es visible ──
+  // ── Heartbeat: 60s — solo red de seguridad, los eventos cubren lo demás ──
+  // Los eventos pause, seek y visibilitychange ya guardan en los momentos clave.
+  // Este intervalo es el último recurso para videos que corren sin interrupciones.
   useEffect(() => {
     if (!playing) {
       if (heartbeatRef.current) clearInterval(heartbeatRef.current);
@@ -166,32 +183,50 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
     }
 
     heartbeatRef.current = setInterval(() => {
-      // No guardar si la pestaña está en segundo plano
-      if (document.visibilityState === "hidden") return;
+      if (document.visibilityState === "hidden") return; // cubierto por visibilitychange
       if (videoRef.current) saveProgress(videoRef.current.currentTime);
-    }, 30_000); // 30 segundos (era 10s = 360 req/hora → ahora 120 req/hora)
+    }, 60_000); // 60s — era 30s → era 10s. Ahora los eventos manejan los casos importantes.
 
     return () => {
       if (heartbeatRef.current) clearInterval(heartbeatRef.current);
     };
   }, [playing, saveProgress]);
 
-  // ── Pausa adicional del heartbeat cuando la pestaña se oculta ──
+  // ── visibilitychange: guardar INMEDIATAMENTE al ir a background ──
+  // Antes solo pausaba el heartbeat. Ahora también salva la posición actual.
   useEffect(() => {
     function handleVisibilityChange() {
       if (document.visibilityState === "hidden") {
         if (heartbeatRef.current) clearInterval(heartbeatRef.current);
+        // Guardar posición inmediatamente (el usuario cambió de pestaña/app)
+        if (videoRef.current && videoRef.current.currentTime > 5) {
+          saveProgressBeacon(videoRef.current.currentTime);
+        }
       }
       // Al volver a visible, el heartbeat se reactiva con el efecto de playing
     }
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, []);
+  }, [saveProgressBeacon]);
 
-  // ── Guardar al desmontar (cambio de lección o cierre) ─────────
+  // ── beforeunload: sendBeacon garantiza entrega al cerrar el browser ──
+  // fetch() se cancela cuando la página cierra. sendBeacon no.
+  useEffect(() => {
+    function handleBeforeUnload() {
+      if (videoRef.current && videoRef.current.currentTime > 5) {
+        saveProgressBeacon(videoRef.current.currentTime);
+      }
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [saveProgressBeacon]);
+
+  // ── Desmontar por cambio de lección (navegación interna) ──────
   useEffect(() => {
     return () => {
       if (heartbeatRef.current) clearInterval(heartbeatRef.current);
+      if (seekSaveTimeout.current) clearTimeout(seekSaveTimeout.current);
+      // En navegación interna fetch sigue funcionando (página no cierra)
       if (videoRef.current && videoRef.current.currentTime > 5) {
         saveProgress(videoRef.current.currentTime);
       }
@@ -232,13 +267,29 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
 
   function seek(delta: number) {
     if (!videoRef.current) return;
-    videoRef.current.currentTime = Math.max(0, Math.min(videoRef.current.currentTime + delta, duration));
+    const newTime = Math.max(0, Math.min(videoRef.current.currentTime + delta, duration));
+    videoRef.current.currentTime = newTime;
+    // Guardar posición al buscar con los botones ±10s (debounce 1s)
+    if (seekSaveTimeout.current) clearTimeout(seekSaveTimeout.current);
+    seekSaveTimeout.current = setTimeout(() => saveProgress(newTime), 1000);
   }
 
+  // El usuario arrastró la barra de progreso — guardar nueva posición
   function handleProgress(e: React.ChangeEvent<HTMLInputElement>) {
     const t = Number(e.target.value);
     if (videoRef.current) videoRef.current.currentTime = t;
     setCurrentTime(t);
+    // Debounce 1s: evita guardar en cada pixel arrastrado
+    if (seekSaveTimeout.current) clearTimeout(seekSaveTimeout.current);
+    seekSaveTimeout.current = setTimeout(() => saveProgress(t), 1000);
+  }
+
+  // El usuario pausó explícitamente — checkpoint natural
+  function handlePause() {
+    setPlaying(false);
+    if (videoRef.current && videoRef.current.currentTime > 5) {
+      saveProgress(videoRef.current.currentTime);
+    }
   }
 
   function handleTimeUpdate() {
@@ -304,7 +355,7 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
               onLoadedMetadata={handleLoadedMetadata}
               onEnded={handleEnded}
               onPlay={() => setPlaying(true)}
-              onPause={() => setPlaying(false)}
+              onPause={handlePause}  // guarda posición al pausar
               onClick={togglePlay}
               playsInline
               controlsList="nodownload"
