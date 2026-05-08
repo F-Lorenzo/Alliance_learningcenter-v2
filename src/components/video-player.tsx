@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   Play, Pause, Volume2, VolumeX, Maximize,
   ChevronLeft, ChevronRight, CheckCircle, Circle, RotateCcw, RotateCw, Loader2,
-  AlertCircle,
+  AlertCircle, Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,18 @@ function fmt(s: number) {
   const m = Math.floor(s / 60);
   const sec = Math.floor(s % 60);
   return `${m}:${sec.toString().padStart(2, "0")}`;
+}
+
+function fmtDate(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return "Ahora";
+  if (diffMin < 60) return `Hace ${diffMin} min`;
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 24) return `Hace ${diffH} h`;
+  return d.toLocaleDateString("es-AR", { day: "numeric", month: "short" });
 }
 
 /** Clave para guardar la URL firmada en sessionStorage */
@@ -83,6 +95,7 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
   const [activeTab, setActiveTab] = useState<"content" | "notes">("content");
   const [noteText, setNoteText] = useState("");
   const [notes, setNotes] = useState<{ id: string; text: string; timestamp: number; createdAt: string }[]>([]);
+  const [savingNote, setSavingNote] = useState(false);
   const [completed, setCompleted] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [watermarkPos, setWatermarkPos] = useState({ top: "10%", right: "2%" });
@@ -213,6 +226,25 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
 
     return () => controller.abort();
   }, [lesson.id, lesson.video_url]);
+
+  // ── Cargar notas desde la DB al montar o cambiar de lección ─────────────
+  useEffect(() => {
+    fetch(`/api/notes?lesson_id=${encodeURIComponent(lesson.id)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setNotes(
+            data.map((n: { id: string; text: string; timestamp_sec: number; created_at: string }) => ({
+              id: n.id,
+              text: n.text,
+              timestamp: n.timestamp_sec,
+              createdAt: fmtDate(n.created_at),
+            }))
+          );
+        }
+      })
+      .catch(() => {}); // silencioso si no hay conexión
+  }, [lesson.id]);
 
   // ── Heartbeat: 60s — solo red de seguridad, los eventos cubren lo demás ──
   // Los eventos pause, seek y visibilitychange ya guardan en los momentos clave.
@@ -369,13 +401,35 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
     }
   }
 
-  function saveNote() {
-    if (!noteText.trim()) return;
-    setNotes((prev) => [
-      { id: Date.now().toString(), text: noteText.trim(), timestamp: Math.floor(currentTime), createdAt: "Ahora" },
-      ...prev,
-    ]);
-    setNoteText("");
+  async function saveNote() {
+    if (!noteText.trim() || savingNote) return;
+    setSavingNote(true);
+    try {
+      const res = await fetch("/api/notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lesson_id: lesson.id,
+          text: noteText.trim(),
+          timestamp_sec: Math.floor(currentTime),
+        }),
+      });
+      if (res.ok) {
+        const saved = await res.json();
+        setNotes((prev) => [
+          { id: saved.id, text: saved.text, timestamp: saved.timestamp_sec, createdAt: "Ahora" },
+          ...prev,
+        ]);
+        setNoteText("");
+      }
+    } finally {
+      setSavingNote(false);
+    }
+  }
+
+  async function deleteNote(noteId: string) {
+    await fetch(`/api/notes?id=${encodeURIComponent(noteId)}`, { method: "DELETE" });
+    setNotes((prev) => prev.filter((n) => n.id !== noteId));
   }
 
   return (
@@ -622,8 +676,8 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
               />
               <div className="flex justify-between items-center mt-2">
                 <span className="text-xs text-text-tertiary">En {fmt(currentTime)} del video</span>
-                <Button variant="primary" size="sm" onClick={saveNote}>
-                  Guardar nota
+                <Button variant="primary" size="sm" onClick={saveNote} disabled={savingNote}>
+                  {savingNote ? "Guardando…" : "Guardar nota"}
                 </Button>
               </div>
             </div>
@@ -634,15 +688,24 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
                 </div>
               ) : (
                 notes.map((note) => (
-                  <div key={note.id} className="px-4 py-3 border-b border-border-default">
-                    <button
-                      className="text-[10px] font-mono bg-bg-tertiary text-text-secondary px-2 py-0.5 rounded-sm hover:text-gold transition-colors"
-                      onClick={() => {
-                        if (videoRef.current) videoRef.current.currentTime = note.timestamp;
-                      }}
-                    >
-                      En {fmt(note.timestamp)}
-                    </button>
+                  <div key={note.id} className="px-4 py-3 border-b border-border-default group">
+                    <div className="flex items-center justify-between">
+                      <button
+                        className="text-[10px] font-mono bg-bg-tertiary text-text-secondary px-2 py-0.5 rounded-sm hover:text-gold transition-colors"
+                        onClick={() => {
+                          if (videoRef.current) videoRef.current.currentTime = note.timestamp;
+                        }}
+                      >
+                        En {fmt(note.timestamp)}
+                      </button>
+                      <button
+                        className="opacity-0 group-hover:opacity-100 text-text-tertiary hover:text-red-400 transition-all"
+                        onClick={() => deleteNote(note.id)}
+                        aria-label="Borrar nota"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                     <p className="text-sm text-text-primary mt-2 leading-relaxed">{note.text}</p>
                     <p className="text-xs text-text-tertiary mt-1">{note.createdAt}</p>
                   </div>
