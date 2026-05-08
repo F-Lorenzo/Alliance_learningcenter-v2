@@ -1,8 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Play } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { formatMinutes } from "@/lib/utils";
+import { cn, formatMinutes, getPublicImageUrl } from "@/lib/utils";
 import type { Course } from "@/types";
 
 interface CourseCardProps {
@@ -27,9 +26,9 @@ export function CourseCard({
     >
       {/* Thumbnail */}
       <div className="aspect-video relative rounded-lg overflow-hidden bg-bg-tertiary">
-        {course.thumbnail_url ? (
+        {getPublicImageUrl(course.thumbnail_url) ? (
           <Image
-            src={`${process.env.NEXT_PUBLIC_R2_PUBLIC_URL}/${course.thumbnail_url}`}
+            src={getPublicImageUrl(course.thumbnail_url)!}
             alt={course.title}
             fill
             className="object-cover transition-transform duration-500 group-hover:scale-105"
