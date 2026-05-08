@@ -10,7 +10,12 @@ export const metadata: Metadata = {
   description: "Explorá todos los módulos de jiu jitsu de Alliance Learning Center.",
 };
 
-export default async function ModulosPage() {
+interface Props {
+  searchParams: Promise<{ instructor?: string }>;
+}
+
+export default async function ModulosPage({ searchParams }: Props) {
+  const { instructor } = await searchParams;
   const [courses, categories, user] = await Promise.all([getCourses(), getCategories(), getCurrentUser()]);
 
   const navUser = user ? { name: user.name, email: user.email } : null;
@@ -20,7 +25,12 @@ export default async function ModulosPage() {
     <>
       <Navbar user={navUser} onLogout={logout} />
       <main className="flex-1 pb-20">
-        <CatalogView courses={courses} allCategories={categories} isLoggedIn={isLoggedIn} />
+        <CatalogView
+          courses={courses}
+          allCategories={categories}
+          isLoggedIn={isLoggedIn}
+          initialInstructor={instructor}
+        />
       </main>
       <Footer />
     </>

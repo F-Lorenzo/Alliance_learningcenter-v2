@@ -1,8 +1,9 @@
+import Link from "next/link";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { getInstructors, getCurrentUser } from "@/lib/queries";
 import { logout } from "@/app/actions";
-import { User } from "lucide-react";
+import { User, ArrowRight } from "lucide-react";
 import Image from "next/image";
 import type { Metadata } from "next";
 
@@ -101,6 +102,14 @@ export default async function ProfesoresPage() {
                         ))}
                       </div>
                     )}
+
+                    <Link
+                      href={`/modulos?instructor=${instructor.id}`}
+                      className="mt-5 flex items-center justify-center gap-1.5 w-full py-2 rounded-lg text-sm font-medium text-text-secondary border border-border-default hover:border-gold/50 hover:text-gold transition-colors"
+                    >
+                      Ver cursos del profesor
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
                   </div>
                 </div>
               ))}

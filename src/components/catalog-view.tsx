@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
-import { Search, SlidersHorizontal, AlertCircle } from "lucide-react";
+import { Search, SlidersHorizontal, AlertCircle, X } from "lucide-react";
 import { FilterSidebar, type Filters, type CategoryOption } from "@/components/filter-sidebar";
 import { CourseCard, CourseCardSkeleton } from "@/components/course-card";
 import { Button } from "@/components/ui/button";
@@ -14,12 +14,16 @@ interface CatalogViewProps {
   courses: Course[];
   allCategories?: Category[];
   isLoggedIn?: boolean;
+  initialInstructor?: string;
 }
 
-export function CatalogView({ courses, allCategories = [], isLoggedIn = false }: CatalogViewProps) {
+export function CatalogView({ courses, allCategories = [], isLoggedIn = false, initialInstructor }: CatalogViewProps) {
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("newest");
-  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+  const [filters, setFilters] = useState<Filters>({
+    ...EMPTY_FILTERS,
+    instructor: initialInstructor ?? "",
+  });
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [page, setPage] = useState(1);
 
@@ -66,6 +70,10 @@ export function CatalogView({ courses, allCategories = [], isLoggedIn = false }:
       );
     }
 
+    if (filters.instructor) {
+      result = result.filter((c) => c.instructor?.id === filters.instructor);
+    }
+
     switch (sort) {
       case "newest":
         result.sort(
@@ -102,6 +110,12 @@ export function CatalogView({ courses, allCategories = [], isLoggedIn = false }:
     filtered.length === 0 &&
     categoryOptions.some((c) => c.value === filters.category && c.count === 0);
 
+  // Nombre del instructor activo (lo derivamos de los cursos)
+  const activeInstructorName = useMemo(() => {
+    if (!filters.instructor) return null;
+    return courses.find((c) => c.instructor?.id === filters.instructor)?.instructor?.name ?? null;
+  }, [courses, filters.instructor]);
+
   const clearFilters = useCallback(() => {
     setFilters(EMPTY_FILTERS);
     setSearch("");
@@ -118,6 +132,22 @@ export function CatalogView({ courses, allCategories = [], isLoggedIn = false }:
           {filtered.length} módulos disponibles · filtrá por posición o profesor
         </p>
       </div>
+
+      {/* Banner de filtro por instructor */}
+      {activeInstructorName && (
+        <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-gold/10 border border-gold/30 rounded-lg text-sm">
+          <span className="text-text-secondary">
+            Cursos de <span className="text-gold font-medium">{activeInstructorName}</span>
+          </span>
+          <button
+            onClick={() => { setFilters((f) => ({ ...f, instructor: "" })); setPage(1); }}
+            className="ml-auto text-text-tertiary hover:text-gold transition-colors"
+            aria-label="Quitar filtro de instructor"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Search bar */}
       <div className="flex gap-3 items-center pb-4 border-b border-border-default mb-6">
