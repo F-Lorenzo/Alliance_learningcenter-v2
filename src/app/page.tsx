@@ -9,14 +9,14 @@ import { FreeSample } from "@/components/home/free-sample";
 import { Testimonials } from "@/components/home/testimonials";
 import { PricingSection } from "@/components/home/pricing-section";
 import { FaqSection } from "@/components/home/faq-section";
-import { getCategories, getInstructors, getFreeCourses, getCurrentUser } from "@/lib/queries";
+import { getCategories, getInstructors, getFreeLessons, getCurrentUser } from "@/lib/queries";
 import { logout } from "@/app/actions";
 
 export default async function HomePage() {
-  const [categories, instructors, freeCourses, user] = await Promise.all([
+  const [categories, instructors, freeLessons, user] = await Promise.all([
     getCategories(),
     getInstructors(),
-    getFreeCourses(),
+    getFreeLessons(),
     getCurrentUser(),
   ]);
 
@@ -31,7 +31,7 @@ export default async function HomePage() {
         <HowItWorks />
         <CategoriesGrid categories={categories} />
         {instructors.length > 0 && <InstructorsSection instructors={instructors} />}
-        <FreeSample courses={freeCourses} />
+        <FreeSample lessons={freeLessons} />
         <Testimonials />
         <PricingSection />
         <FaqSection />

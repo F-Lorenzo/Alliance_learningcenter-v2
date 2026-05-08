@@ -62,6 +62,47 @@ export async function getInstructors(): Promise<Instructor[]> {
   return (data ?? []) as Instructor[];
 }
 
+export interface FreeLesson {
+  id: string;
+  slug: string;
+  title: string;
+  duration: number;
+  courseSlug: string;
+  courseTitle: string;
+  thumbnailUrl: string | null;
+}
+
+export async function getFreeLessons(): Promise<FreeLesson[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("lessons")
+    .select(`id, slug, title, duration, course:courses!inner(slug, title, thumbnail_url, is_published)`)
+    .eq("is_free", true)
+    .limit(16);
+
+  if (!data) return [];
+
+  type RawLesson = {
+    id: string;
+    slug: string;
+    title: string;
+    duration: number;
+    course: { slug: string; title: string; thumbnail_url: string | null; is_published: boolean } | null;
+  };
+
+  return (data as unknown as RawLesson[])
+    .filter((l) => l.course?.is_published)
+    .map((l) => ({
+      id: l.id,
+      slug: l.slug,
+      title: l.title,
+      duration: l.duration,
+      courseSlug: l.course!.slug,
+      courseTitle: l.course!.title,
+      thumbnailUrl: l.course!.thumbnail_url,
+    }));
+}
+
 export async function getFreeCourses(): Promise<Course[]> {
   const supabase = await createClient();
   const { data } = await supabase
