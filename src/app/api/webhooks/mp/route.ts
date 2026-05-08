@@ -3,6 +3,13 @@ import { MercadoPagoConfig, PreApproval } from "mercadopago";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createHmac } from "crypto";
 
+// Parsea una fecha de MP de forma defensiva. Si el string es inválido devuelve now().
+function parseSafeDate(value: unknown): Date {
+  if (!value) return new Date();
+  const d = new Date(value as string);
+  return isNaN(d.getTime()) ? new Date() : d;
+}
+
 // Verifica la firma HMAC que MP envía en el header x-signature.
 // Se verifica en TODOS los entornos si MP_WEBHOOK_SECRET está configurado.
 function verifySignature(xSignature: string, xRequestId: string): boolean {
@@ -46,25 +53,31 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Payload inválido" }, { status: 400 });
   }
 
-  // ── Deduplicación: ignorar si ya procesamos este request_id ────────────
-  const { data: existing } = await db
+  // ── Deduplicación atómica: upsert con ignoreDuplicates ────────────────
+  // Si event_id ya existe (UNIQUE constraint), el insert se ignora y
+  // rowsAffected = 0. Así evitamos race conditions entre requests paralelos.
+  const { data: inserted, error: insertError } = await db
     .from("webhook_events")
-    .select("id, status")
-    .eq("event_id", xRequestId)
+    .upsert(
+      {
+        event_id: xRequestId,
+        type: String(event.type ?? "unknown"),
+        status: "pending",
+        payload: event,
+      },
+      { onConflict: "event_id", ignoreDuplicates: true }
+    )
+    .select("id")
     .maybeSingle();
 
-  if (existing) {
-    // Ya procesado (o en proceso): idempotente, responder 200.
-    return NextResponse.json({ ok: true, duplicate: true });
+  if (insertError) {
+    console.error("[webhooks/mp] Error registrando evento:", insertError.message);
   }
 
-  // Registrar el evento como "pending" para auditoría
-  await db.from("webhook_events").insert({
-    event_id: xRequestId,
-    type: String(event.type ?? "unknown"),
-    status: "pending",
-    payload: event,
-  });
+  if (!inserted) {
+    // Ya existía — responder idempotente
+    return NextResponse.json({ ok: true, duplicate: true });
+  }
 
   // ── Solo procesamos eventos de suscripciones ───────────────────────────
   if (event.type !== "subscription_preapproval") {
@@ -109,7 +122,7 @@ export async function POST(request: Request) {
     const status = statusMap[sub.status ?? ""] ?? "inactive";
 
     // Calcular período desde la última fecha de cargo
-    const lastModified = sub.last_modified ? new Date(sub.last_modified) : new Date();
+    const lastModified = parseSafeDate(sub.last_modified);
     const frequency = sub.auto_recurring?.frequency ?? 1;
     const frequencyType = sub.auto_recurring?.frequency_type ?? "months";
     const periodEnd = new Date(lastModified);

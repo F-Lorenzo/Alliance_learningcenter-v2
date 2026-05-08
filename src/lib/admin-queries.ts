@@ -18,13 +18,18 @@ async function fetchAllAuthUsers(db: ReturnType<typeof createAdminClient>) {
 
   // Si hay más páginas, lanzarlas todas en paralelo
   if (firstPage.users.length === perPage) {
-    const totalPages = Math.ceil((firstPage.total ?? 0) / perPage);
+    const total = typeof firstPage.total === "number" ? firstPage.total : 0;
+    const totalPages = total > 0 ? Math.ceil(total / perPage) : 1;
     if (totalPages > 1) {
-      const rest = await Promise.all(
-        Array.from({ length: totalPages - 1 }, (_, i) =>
-          db.auth.admin.listUsers({ page: i + 2, perPage })
-        )
-      );
+      // Lanzar en bloques de 5 para no saturar la API de Supabase Auth
+      const pageNumbers = Array.from({ length: totalPages - 1 }, (_, i) => i + 2);
+      const chunks: number[][] = [];
+      for (let i = 0; i < pageNumbers.length; i += 5) chunks.push(pageNumbers.slice(i, i + 5));
+      const rest = [];
+      for (const chunk of chunks) {
+        const results = await Promise.all(chunk.map((p) => db.auth.admin.listUsers({ page: p, perPage })));
+        rest.push(...results);
+      }
       for (const { data } of rest) {
         if (data?.users?.length) {
           allUsers.push(...data.users.map((u) => ({ id: u.id, email: u.email })));

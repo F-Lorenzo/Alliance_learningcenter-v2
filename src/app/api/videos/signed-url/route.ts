@@ -26,8 +26,8 @@ async function isRateLimited(userId: string): Promise<boolean> {
     // Registrar este request
     await db.from("rate_limits").insert({ user_id: userId });
 
-    // Limpiar registros viejos (1 de cada 20 requests para no sobrecargar)
-    if (Math.random() < 0.05) {
+    // Limpiar registros viejos (1 de cada 4 requests — suficiente para mantener la tabla chica)
+    if (Math.random() < 0.25) {
       const cutoff = new Date(now.getTime() - RATE_WINDOW_SEC * 2 * 1000).toISOString();
       await db.from("rate_limits").delete().lt("created_at", cutoff);
     }

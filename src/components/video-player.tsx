@@ -87,6 +87,8 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [loadingUrl, setLoadingUrl] = useState(false);
   const [videoError, setVideoError] = useState(false);
+  const retryCountRef = useRef(0);
+  const MAX_RETRIES = 3;
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(lesson.duration || 0);
@@ -213,6 +215,7 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
         if (data.url) {
           setSignedUrl(data.url);
           setVideoError(false);
+          retryCountRef.current = 0; // reset al obtener URL exitosa
           setCachedUrl(lesson.id, data.url, 7200);
         }
       })
@@ -222,8 +225,10 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
       .finally(() => setLoadingUrl(false));
   }, [lesson.id, lesson.video_url]);
 
-  // ── Obtener URL firmada de R2 al montar ───────────────────────
+  // ── Obtener URL firmada de R2 al montar / cambiar lección ─────
   useEffect(() => {
+    retryCountRef.current = 0; // reset contador al cambiar lección
+    setVideoError(false);
     fetchSignedUrl(false);
     return () => abortControllerRef.current?.abort();
   }, [fetchSignedUrl]);
@@ -465,10 +470,15 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
               onPause={handlePause}
               onClick={togglePlay}
               onError={() => {
-                // URL firmada expirada — limpiar cache y reintentar automáticamente
                 sessionStorage.removeItem(sessionKey(lesson.id));
                 setVideoError(true);
-                setTimeout(() => fetchSignedUrl(true), 1000);
+                if (retryCountRef.current < MAX_RETRIES) {
+                  retryCountRef.current += 1;
+                  // Backoff exponencial: 1s, 3s, 7s
+                  const delay = (Math.pow(2, retryCountRef.current) - 1) * 1000;
+                  setTimeout(() => fetchSignedUrl(true), delay);
+                }
+                // Si llega al límite, videoError=true ya muestra el estado de error al usuario
               }}
               playsInline
               controlsList="nodownload"

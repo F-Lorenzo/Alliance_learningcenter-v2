@@ -5,6 +5,18 @@ import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
+// Verifica que el usuario logueado tiene rol admin o superior.
+// Lanza error si no — corta la ejecución de cualquier action que la llame.
+async function requireAdminRole() {
+  const db = await createClient();
+  const { data: { user } } = await db.auth.getUser();
+  if (!user) throw new Error("No autenticado");
+  const role = user.app_metadata?.role as string | undefined;
+  if (!role || !["super_admin", "admin", "admin_profesor"].includes(role)) {
+    throw new Error("Acceso denegado");
+  }
+}
+
 function slugify(str: string) {
   return str
     .toLowerCase()
@@ -17,6 +29,7 @@ function slugify(str: string) {
 // ── CURSOS ─────────────────────────────────────────────────────
 
 export async function createCourse(formData: FormData) {
+  await requireAdminRole();
   const db = createAdminClient();
   const title = formData.get("title") as string;
 
@@ -52,6 +65,7 @@ export async function createCourse(formData: FormData) {
 }
 
 export async function updateCourse(id: string, formData: FormData) {
+  await requireAdminRole();
   const db = createAdminClient();
   const title = formData.get("title") as string;
 
@@ -89,6 +103,7 @@ export async function updateCourse(id: string, formData: FormData) {
 }
 
 export async function deleteCourse(id: string) {
+  await requireAdminRole();
   const db = createAdminClient();
   await db.from("courses").delete().eq("id", id);
   revalidatePath("/admin/cursos");
@@ -96,6 +111,7 @@ export async function deleteCourse(id: string) {
 }
 
 export async function togglePublished(id: string, current: boolean) {
+  await requireAdminRole();
   const db = createAdminClient();
   await db
     .from("courses")
@@ -108,6 +124,7 @@ export async function togglePublished(id: string, current: boolean) {
 // ── LECCIONES ──────────────────────────────────────────────────
 
 export async function createLesson(courseId: string, formData: FormData) {
+  await requireAdminRole();
   const db = createAdminClient();
   const title = formData.get("title") as string;
 
@@ -143,6 +160,7 @@ export async function updateLesson(
   courseId: string,
   formData: FormData
 ) {
+  await requireAdminRole();
   const db = createAdminClient();
   const title = formData.get("title") as string;
 
@@ -165,6 +183,7 @@ export async function updateLesson(
 }
 
 export async function deleteLesson(lessonId: string, courseId: string) {
+  await requireAdminRole();
   const db = createAdminClient();
   await db.from("lessons").delete().eq("id", lessonId);
   revalidatePath(`/admin/cursos/${courseId}`);
@@ -173,6 +192,7 @@ export async function deleteLesson(lessonId: string, courseId: string) {
 // ── INSTRUCTORES ───────────────────────────────────────────────
 
 export async function createInstructor(formData: FormData) {
+  await requireAdminRole();
   const db = createAdminClient();
 
   const achievementsRaw = (formData.get("achievements") as string) ?? "";
@@ -202,6 +222,7 @@ export async function createInstructor(formData: FormData) {
 }
 
 export async function updateInstructor(id: string, formData: FormData) {
+  await requireAdminRole();
   const db = createAdminClient();
 
   const achievementsRaw = (formData.get("achievements") as string) ?? "";
@@ -229,6 +250,7 @@ export async function updateInstructor(id: string, formData: FormData) {
 }
 
 export async function deleteInstructor(id: string) {
+  await requireAdminRole();
   const db = createAdminClient();
   await db.from("instructors").delete().eq("id", id);
   revalidatePath("/admin/profesores");
@@ -247,6 +269,7 @@ export async function toggleSubscription(
   userId: string,
   currentStatus: string | null
 ) {
+  await requireAdminRole();
   const db = createAdminClient();
   const isActive = currentStatus === "active" || currentStatus === "trialing";
 
@@ -350,6 +373,7 @@ export async function setUserRole(targetUserId: string, newRole: Role) {
 // ── USUARIOS ───────────────────────────────────────────────────
 
 export async function toggleAdminRole(userId: string, current: boolean) {
+  await requireAdminRole();
   const db = createAdminClient();
   const makeAdmin = !current;
 
