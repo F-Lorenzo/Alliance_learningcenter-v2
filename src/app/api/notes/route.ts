@@ -45,6 +45,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "lesson_id y text son requeridos" }, { status: 400 });
     }
 
+    // Verificar que el usuario puede acceder a la lección (es free o tiene suscripción)
+    const { data: lesson } = await supabase
+      .from("lessons")
+      .select("is_free")
+      .eq("id", lesson_id)
+      .maybeSingle();
+
+    if (!lesson) return NextResponse.json({ error: "Lección no encontrada" }, { status: 404 });
+
+    if (!lesson.is_free) {
+      const { data: sub } = await supabase
+        .from("subscriptions")
+        .select("status")
+        .eq("user_id", user.id)
+        .in("status", ["active", "trialing"])
+        .maybeSingle();
+      if (!sub) return NextResponse.json({ error: "Suscripción requerida" }, { status: 403 });
+    }
+
     const { data, error } = await supabase
       .from("lesson_notes")
       .insert({

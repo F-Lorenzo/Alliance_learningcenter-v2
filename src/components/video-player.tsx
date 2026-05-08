@@ -86,6 +86,7 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
   const videoRef = useRef<HTMLVideoElement>(null);
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [loadingUrl, setLoadingUrl] = useState(false);
+  const [videoError, setVideoError] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(lesson.duration || 0);
@@ -188,26 +189,21 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
     return () => window.removeEventListener("online", handleOnline);
   }, [saveProgress]);
 
-  // ── Obtener URL firmada de R2 al montar ───────────────────────
-  // 1. Primero busca en sessionStorage (evita request si la URL sigue vigente)
-  // 2. Si no hay cache, fetcha con AbortController para cancelar si la lección cambia
-  useEffect(() => {
+  // ── Fetch de URL firmada (reutilizable para retry) ────────────
+  const fetchSignedUrl = useCallback((forceRefresh = false) => {
     if (!lesson.video_url) return;
 
-    // Verificar cache primero
-    const cached = getCachedUrl(lesson.id);
-    if (cached) {
-      setSignedUrl(cached);
-      return;
+    if (!forceRefresh) {
+      const cached = getCachedUrl(lesson.id);
+      if (cached) { setSignedUrl(cached); return; }
     }
 
-    // Cancelar request anterior si el usuario navegó rápido entre lecciones
     if (abortControllerRef.current) abortControllerRef.current.abort();
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
     setLoadingUrl(true);
-    setSignedUrl(null);
+    if (forceRefresh) setSignedUrl(null);
 
     fetch(`/api/videos/signed-url?lesson_id=${encodeURIComponent(lesson.id)}`, {
       signal: controller.signal,
@@ -216,16 +212,21 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
       .then((data) => {
         if (data.url) {
           setSignedUrl(data.url);
-          setCachedUrl(lesson.id, data.url, 7200); // cachear 2 horas
+          setVideoError(false);
+          setCachedUrl(lesson.id, data.url, 7200);
         }
       })
       .catch((err) => {
         if (err.name !== "AbortError") console.error("[signed-url]", err);
       })
       .finally(() => setLoadingUrl(false));
-
-    return () => controller.abort();
   }, [lesson.id, lesson.video_url]);
+
+  // ── Obtener URL firmada de R2 al montar ───────────────────────
+  useEffect(() => {
+    fetchSignedUrl(false);
+    return () => abortControllerRef.current?.abort();
+  }, [fetchSignedUrl]);
 
   // ── Cargar notas desde la DB al montar o cambiar de lección ─────────────
   useEffect(() => {
@@ -461,8 +462,14 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
               onLoadedMetadata={handleLoadedMetadata}
               onEnded={handleEnded}
               onPlay={() => setPlaying(true)}
-              onPause={handlePause}  // guarda posición al pausar
+              onPause={handlePause}
               onClick={togglePlay}
+              onError={() => {
+                // URL firmada expirada — limpiar cache y reintentar automáticamente
+                sessionStorage.removeItem(sessionKey(lesson.id));
+                setVideoError(true);
+                setTimeout(() => fetchSignedUrl(true), 1000);
+              }}
               playsInline
               controlsList="nodownload"
               onContextMenu={(e) => e.preventDefault()}

@@ -1,34 +1,41 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getSignedVideoUrl } from "@/lib/r2";
 
-// ── Rate limiter en memoria (best-effort en serverless) ───────────────────
-// Para protección robusta en producción usar Upstash Redis.
-const RATE_LIMIT = 30;           // requests máximos por ventana
-const RATE_WINDOW_MS = 60_000;   // ventana de 60 segundos
+const RATE_LIMIT = 30;         // requests máximos por ventana
+const RATE_WINDOW_SEC = 60;    // ventana de 60 segundos
 
-interface RateEntry { count: number; resetAt: number }
-const rateStore = new Map<string, RateEntry>();
+// Rate limiter usando Supabase como store compartido entre instancias serverless.
+// La tabla rate_limits debe existir (ver create-rate-limits-table.sql).
+async function isRateLimited(userId: string): Promise<boolean> {
+  try {
+    const db = createAdminClient();
+    const now = new Date();
+    const windowStart = new Date(now.getTime() - RATE_WINDOW_SEC * 1000).toISOString();
 
-function isRateLimited(userId: string): boolean {
-  const now = Date.now();
-  const entry = rateStore.get(userId);
+    // Contar requests en la ventana actual
+    const { count } = await db
+      .from("rate_limits")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .gte("created_at", windowStart);
 
-  if (!entry || now > entry.resetAt) {
-    rateStore.set(userId, { count: 1, resetAt: now + RATE_WINDOW_MS });
+    if ((count ?? 0) >= RATE_LIMIT) return true;
+
+    // Registrar este request
+    await db.from("rate_limits").insert({ user_id: userId });
+
+    // Limpiar registros viejos (1 de cada 20 requests para no sobrecargar)
+    if (Math.random() < 0.05) {
+      const cutoff = new Date(now.getTime() - RATE_WINDOW_SEC * 2 * 1000).toISOString();
+      await db.from("rate_limits").delete().lt("created_at", cutoff);
+    }
+
     return false;
-  }
-
-  entry.count++;
-  if (entry.count > RATE_LIMIT) return true;
-  return false;
-}
-
-// Limpiar entradas expiradas periódicamente para evitar memory leaks
-function cleanupRateStore() {
-  const now = Date.now();
-  for (const [key, entry] of rateStore.entries()) {
-    if (now > entry.resetAt) rateStore.delete(key);
+  } catch {
+    // Si falla el rate limiter, dejar pasar (no bloquear al usuario por error interno)
+    return false;
   }
 }
 
@@ -41,16 +48,14 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    // 2. Rate limiting por usuario
-    if (isRateLimited(user.id)) {
+    // 2. Rate limiting por usuario (Supabase como store compartido)
+    if (await isRateLimited(user.id)) {
       console.warn(`[videos/signed-url] Rate limit alcanzado para usuario ${user.id}`);
       return NextResponse.json(
         { error: "Demasiadas solicitudes. Esperá un momento." },
         { status: 429 }
       );
     }
-    // Cleanup ocasional (1 de cada 50 requests)
-    if (Math.random() < 0.02) cleanupRateStore();
 
     // 3. Obtener el lesson_id del query param
     const { searchParams } = new URL(request.url);

@@ -8,16 +8,29 @@ import { createClient } from "@/lib/supabase/server";
  * Reemplaza el patrón { perPage: 1000 } que falla con más de 1000 usuarios.
  */
 async function fetchAllAuthUsers(db: ReturnType<typeof createAdminClient>) {
-  const allUsers: Array<{ id: string; email?: string }> = [];
-  let page = 1;
   const perPage = 100;
 
-  while (true) {
-    const { data, error } = await db.auth.admin.listUsers({ page, perPage });
-    if (error || !data?.users?.length) break;
-    allUsers.push(...data.users.map((u) => ({ id: u.id, email: u.email })));
-    if (data.users.length < perPage) break; // última página
-    page++;
+  // Primera página para conocer el total real
+  const { data: firstPage, error } = await db.auth.admin.listUsers({ page: 1, perPage });
+  if (error || !firstPage?.users?.length) return [];
+
+  const allUsers = firstPage.users.map((u) => ({ id: u.id, email: u.email }));
+
+  // Si hay más páginas, lanzarlas todas en paralelo
+  if (firstPage.users.length === perPage) {
+    const totalPages = Math.ceil((firstPage.total ?? 0) / perPage);
+    if (totalPages > 1) {
+      const rest = await Promise.all(
+        Array.from({ length: totalPages - 1 }, (_, i) =>
+          db.auth.admin.listUsers({ page: i + 2, perPage })
+        )
+      );
+      for (const { data } of rest) {
+        if (data?.users?.length) {
+          allUsers.push(...data.users.map((u) => ({ id: u.id, email: u.email })));
+        }
+      }
+    }
   }
 
   return allUsers;

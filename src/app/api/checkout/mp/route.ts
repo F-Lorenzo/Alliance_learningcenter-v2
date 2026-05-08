@@ -39,6 +39,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
+    // Verificar que el email esté confirmado antes de procesar el pago
+    if (!user.email_confirmed_at) {
+      return NextResponse.json(
+        { error: "Necesitás confirmar tu email antes de suscribirte. Revisá tu bandeja de entrada." },
+        { status: 403 }
+      );
+    }
+
     // 2. Validar plan
     const body = await request.json();
     const planKey = body.plan as "monthly" | "yearly";
