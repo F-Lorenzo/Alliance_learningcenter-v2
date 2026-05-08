@@ -57,11 +57,18 @@ export async function POST(request: Request) {
     if (!lesson.is_free) {
       const { data: sub } = await supabase
         .from("subscriptions")
-        .select("status")
+        .select("status, current_period_end")
         .eq("user_id", user.id)
         .in("status", ["active", "trialing"])
         .maybeSingle();
+
       if (!sub) return NextResponse.json({ error: "Suscripción requerida" }, { status: 403 });
+
+      // Si tiene fecha de vencimiento y ya expiró, rechazar
+      // NULL = suscripción manual sin fecha límite (admin grants) → permitir
+      if (sub.current_period_end && new Date(sub.current_period_end) < new Date()) {
+        return NextResponse.json({ error: "Suscripción vencida" }, { status: 403 });
+      }
     }
 
     const { data, error } = await supabase

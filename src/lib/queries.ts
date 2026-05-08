@@ -1,5 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { Course, Category, Instructor, Lesson } from "@/types";
 
 function transformCourse(row: Record<string, unknown>): Course {
@@ -48,7 +49,7 @@ const COURSE_SELECT = `
 // Datos que cambian raramente — cacheados 5 minutos en el servidor
 export const getCategories = unstable_cache(
   async (): Promise<Category[]> => {
-    const supabase = await createClient();
+    const supabase = createAdminClient();
     const { data } = await supabase
       .from("categories")
       .select("id, name, slug, thumbnail_url, sort_order")
@@ -61,7 +62,7 @@ export const getCategories = unstable_cache(
 
 export const getInstructors = unstable_cache(
   async (): Promise<Instructor[]> => {
-    const supabase = await createClient();
+    const supabase = createAdminClient();
     const { data } = await supabase
       .from("instructors")
       .select("id, name, belt, photo_url, bio, achievements")
@@ -84,7 +85,7 @@ export interface FreeLesson {
 
 export const getFreeLessons = unstable_cache(
   async (): Promise<FreeLesson[]> => {
-    const supabase = await createClient();
+    const supabase = createAdminClient();
     const { data } = await supabase
       .from("lessons")
       .select(`id, slug, title, duration, course:courses!inner(slug, title, thumbnail_url, is_published)`)
@@ -128,7 +129,7 @@ export async function getFreeCourses(): Promise<Course[]> {
 
 export const getCourses = unstable_cache(
   async (limit = 100): Promise<Course[]> => {
-    const supabase = await createClient();
+    const supabase = createAdminClient();
     const { data } = await supabase
       .from("courses")
       .select(COURSE_SELECT)

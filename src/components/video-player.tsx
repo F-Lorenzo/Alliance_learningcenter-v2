@@ -100,6 +100,7 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
   const [notes, setNotes] = useState<{ id: string; text: string; timestamp: number; createdAt: string }[]>([]);
   const [savingNote, setSavingNote] = useState(false);
   const [completed, setCompleted] = useState(false);
+  const completedRef = useRef(false); // shadow ref para evitar stale closure en callbacks
   const [countdown, setCountdown] = useState<number | null>(null);
   const [watermarkPos, setWatermarkPos] = useState({ top: "10%", right: "2%" });
   const [progressError, setProgressError] = useState(false);
@@ -124,10 +125,11 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
     if (!lesson.id) return;
     if (isDuplicate(seconds)) return; // skip: save idéntico hace <3s
 
+    const resolvedCompleted = isCompleted ?? completedRef.current;
     const body = JSON.stringify({
       lesson_id: lesson.id,
       watched_seconds: Math.floor(seconds),
-      completed: isCompleted ?? completed,
+      completed: resolvedCompleted,
     });
 
     // Actualizar refs antes del fetch (optimista) para que la deduplicación funcione
@@ -142,22 +144,19 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
       .then((r) => {
         if (!r.ok) {
           console.error("[progress] Error al guardar progreso:", r.status);
-          // Encolar para reintentar al recuperar conexión
-          pendingSaveRef.current = { seconds, completed: isCompleted ?? completed };
+          pendingSaveRef.current = { seconds, completed: resolvedCompleted };
           setProgressError(true);
           setTimeout(() => setProgressError(false), 5000);
         } else {
-          // Save exitoso: limpiar cola offline si la había
           pendingSaveRef.current = null;
         }
       })
       .catch(() => {
-        // Error de red → encolar para cuando vuelva la conexión
-        pendingSaveRef.current = { seconds, completed: isCompleted ?? completed };
+        pendingSaveRef.current = { seconds, completed: resolvedCompleted };
         setProgressError(true);
         setTimeout(() => setProgressError(false), 5000);
       });
-  }, [lesson.id, completed, isDuplicate]);
+  }, [lesson.id, isDuplicate]);
 
   // ── Guardar via sendBeacon (garantizado incluso al cerrar el browser) ──
   // sendBeacon no puede cancelarse ni falla por cierre de pestaña.
@@ -171,13 +170,13 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
     const payload = JSON.stringify({
       lesson_id: lesson.id,
       watched_seconds: Math.floor(seconds),
-      completed: isCompleted ?? completed,
+      completed: isCompleted ?? completedRef.current,
     });
     navigator.sendBeacon(
       "/api/progress",
       new Blob([payload], { type: "application/json" })
     );
-  }, [lesson.id, completed, isDuplicate]);
+  }, [lesson.id, isDuplicate]);
 
   // ── Cola offline: reintentar el último save cuando vuelve la conexión ──
   useEffect(() => {
@@ -377,7 +376,8 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
     if (!videoRef.current) return;
     const t = videoRef.current.currentTime;
     setCurrentTime(t);
-    if (!completed && duration > 0 && t / duration >= 0.9) {
+    if (!completedRef.current && duration > 0 && t / duration >= 0.9) {
+      completedRef.current = true;
       setCompleted(true);
       saveProgress(t, true);
     }
