@@ -379,11 +379,20 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
 
   function handleLoadedMetadata() {
     if (videoRef.current) {
-      setDuration(videoRef.current.duration);
+      const realDuration = videoRef.current.duration;
+      setDuration(realDuration);
       // Retomar desde donde quedó (si pasó más de 5 segundos)
       if (initialProgress > 5) {
         videoRef.current.currentTime = initialProgress;
         setCurrentTime(initialProgress);
+      }
+      // Auto-guardar duración real si la DB tiene 0
+      if (realDuration > 0 && lesson.duration === 0) {
+        fetch("/api/lessons/duration", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lesson_id: lesson.id, duration_seconds: realDuration }),
+        }).catch(() => {});
       }
     }
   }
