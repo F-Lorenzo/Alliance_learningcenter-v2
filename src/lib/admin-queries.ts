@@ -238,6 +238,24 @@ export async function getAdminInstructor(id: string) {
   } | null;
 }
 
+export async function getAdminInstructorCourses(instructorId: string) {
+  const db = createAdminClient();
+  const { data } = await db
+    .from("courses")
+    .select("id, slug, title, thumbnail_url, is_published, total_duration, lessons(count)")
+    .eq("instructor_id", instructorId)
+    .order("created_at", { ascending: false });
+  return (data ?? []) as Array<{
+    id: string;
+    slug: string;
+    title: string;
+    thumbnail_url: string | null;
+    is_published: boolean;
+    total_duration: number;
+    lessons: Array<{ count: number }>;
+  }>;
+}
+
 // ── Cobros ─────────────────────────────────────────────────────
 
 export async function getAdminSubscriptions(page = 1) {
