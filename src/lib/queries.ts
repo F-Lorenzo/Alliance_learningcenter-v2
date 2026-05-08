@@ -89,10 +89,7 @@ export async function getCourseBySlug(slug: string): Promise<Course | null> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("courses")
-    .select(
-      `${COURSE_SELECT},
-      lessons(id, slug, title, duration, is_free, sort_order)`
-    )
+    .select(COURSE_SELECT)
     .eq("slug", slug)
     .eq("is_published", true)
     .maybeSingle();
