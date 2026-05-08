@@ -29,7 +29,7 @@ export function CourseCard({
       <div className="aspect-video relative rounded-lg overflow-hidden bg-bg-tertiary">
         {course.thumbnail_url ? (
           <Image
-            src={course.thumbnail_url}
+            src={`${process.env.NEXT_PUBLIC_R2_PUBLIC_URL}/${course.thumbnail_url}`}
             alt={course.title}
             fill
             className="object-cover transition-transform duration-500 group-hover:scale-105"

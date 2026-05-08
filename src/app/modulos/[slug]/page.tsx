@@ -141,7 +141,7 @@ export default async function ModuloPage({ params }: Props) {
             >
               {course.thumbnail_url && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={course.thumbnail_url} alt={course.title} className="w-full h-full object-cover" />
+                <img src={`${process.env.NEXT_PUBLIC_R2_PUBLIC_URL}/${course.thumbnail_url}`} alt={course.title} className="w-full h-full object-cover" />
               )}
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center border border-white/20 backdrop-blur-sm group-hover:bg-white/20 group-hover:scale-110 transition-all duration-200">
