@@ -57,11 +57,6 @@ export function CourseCard({
           </span>
         )}
 
-        {/* Duración */}
-        <span className="absolute bottom-2 right-2 text-[11px] font-mono bg-black/60 text-white px-2 py-0.5 rounded-sm">
-          {formatMinutes(course.total_duration)}
-        </span>
-
         {/* Progress bar */}
         {showProgress && progress > 0 && (
           <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-white/10">
