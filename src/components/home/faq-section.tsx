@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 const FAQ = [
   {
     q: "¿Qué incluye la suscripción?",
-    a: "Acceso ilimitado a todos los módulos, técnicas y actualizaciones. Podés ver todo el contenido sin restricciones mientras tu suscripción esté activa.",
+    a: "Acceso ilimitado a toda la biblioteca de módulos y técnicas de contenido regular, más todas las actualizaciones que vamos sumando. Es todo lo que necesitás para entrenar y progresar. Adicionalmente, organizamos seminarios especiales y cursos extra con instructores invitados que se ofrecen de forma independiente — así podés elegir lo que más te interesa sin pagarlo dentro de la suscripción.",
   },
   {
     q: "¿Puedo ver el contenido desde el celular?",
