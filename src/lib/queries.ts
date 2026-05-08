@@ -1,4 +1,3 @@
-import { unstable_cache } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Course, Category, Instructor, Lesson } from "@/types";
@@ -46,32 +45,23 @@ const COURSE_SELECT = `
   lessons(id, slug, title, duration, is_free, sort_order)
 ` as const;
 
-// Datos que cambian raramente — cacheados 5 minutos en el servidor
-export const getCategories = unstable_cache(
-  async (): Promise<Category[]> => {
-    const supabase = createAdminClient();
-    const { data } = await supabase
-      .from("categories")
-      .select("id, name, slug, thumbnail_url, sort_order")
-      .order("sort_order");
-    return (data ?? []) as Category[];
-  },
-  ["categories"],
-  { revalidate: 300 }
-);
+export async function getCategories(): Promise<Category[]> {
+  const supabase = createAdminClient();
+  const { data } = await supabase
+    .from("categories")
+    .select("id, name, slug, thumbnail_url, sort_order")
+    .order("sort_order");
+  return (data ?? []) as Category[];
+}
 
-export const getInstructors = unstable_cache(
-  async (): Promise<Instructor[]> => {
-    const supabase = createAdminClient();
-    const { data } = await supabase
-      .from("instructors")
-      .select("id, name, belt, photo_url, bio, achievements")
-      .order("sort_order");
-    return (data ?? []) as Instructor[];
-  },
-  ["instructors"],
-  { revalidate: 300 }
-);
+export async function getInstructors(): Promise<Instructor[]> {
+  const supabase = createAdminClient();
+  const { data } = await supabase
+    .from("instructors")
+    .select("id, name, belt, photo_url, bio, achievements")
+    .order("sort_order");
+  return (data ?? []) as Instructor[];
+}
 
 export interface FreeLesson {
   id: string;
@@ -83,37 +73,33 @@ export interface FreeLesson {
   thumbnailUrl: string | null;
 }
 
-export const getFreeLessons = unstable_cache(
-  async (): Promise<FreeLesson[]> => {
-    const supabase = createAdminClient();
-    const { data } = await supabase
-      .from("lessons")
-      .select(`id, slug, title, duration, course:courses!inner(slug, title, thumbnail_url, is_published)`)
-      .eq("is_free", true)
-      .limit(16);
+export async function getFreeLessons(): Promise<FreeLesson[]> {
+  const supabase = createAdminClient();
+  const { data } = await supabase
+    .from("lessons")
+    .select(`id, slug, title, duration, course:courses!inner(slug, title, thumbnail_url, is_published)`)
+    .eq("is_free", true)
+    .limit(16);
 
-    if (!data) return [];
+  if (!data) return [];
 
-    type RawLesson = {
-      id: string; slug: string; title: string; duration: number;
-      course: { slug: string; title: string; thumbnail_url: string | null; is_published: boolean } | null;
-    };
+  type RawLesson = {
+    id: string; slug: string; title: string; duration: number;
+    course: { slug: string; title: string; thumbnail_url: string | null; is_published: boolean } | null;
+  };
 
-    return (data as unknown as RawLesson[])
-      .filter((l) => l.course?.is_published)
-      .map((l) => ({
-        id: l.id,
-        slug: l.slug,
-        title: l.title,
-        duration: l.duration,
-        courseSlug: l.course!.slug,
-        courseTitle: l.course!.title,
-        thumbnailUrl: l.course!.thumbnail_url,
-      }));
-  },
-  ["free-lessons"],
-  { revalidate: 300 }
-);
+  return (data as unknown as RawLesson[])
+    .filter((l) => l.course?.is_published)
+    .map((l) => ({
+      id: l.id,
+      slug: l.slug,
+      title: l.title,
+      duration: l.duration,
+      courseSlug: l.course!.slug,
+      courseTitle: l.course!.title,
+      thumbnailUrl: l.course!.thumbnail_url,
+    }));
+}
 
 export async function getFreeCourses(): Promise<Course[]> {
   const supabase = await createClient();
@@ -127,20 +113,16 @@ export async function getFreeCourses(): Promise<Course[]> {
   return (data ?? []).map((r) => transformCourse(r as Record<string, unknown>));
 }
 
-export const getCourses = unstable_cache(
-  async (limit = 100): Promise<Course[]> => {
-    const supabase = createAdminClient();
-    const { data } = await supabase
-      .from("courses")
-      .select(COURSE_SELECT)
-      .eq("is_published", true)
-      .order("created_at", { ascending: false })
-      .limit(limit);
-    return (data ?? []).map((r) => transformCourse(r as Record<string, unknown>));
-  },
-  ["courses"],
-  { revalidate: 300 }
-);
+export async function getCourses(limit = 100): Promise<Course[]> {
+  const supabase = createAdminClient();
+  const { data } = await supabase
+    .from("courses")
+    .select(COURSE_SELECT)
+    .eq("is_published", true)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  return (data ?? []).map((r) => transformCourse(r as Record<string, unknown>));
+}
 
 export async function getCourseBySlug(slug: string): Promise<Course | null> {
   const supabase = await createClient();
