@@ -1,5 +1,4 @@
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import type { Course, Category, Instructor, Lesson } from "@/types";
 
 function transformCourse(row: Record<string, unknown>): Course {
@@ -46,7 +45,7 @@ const COURSE_SELECT = `
 ` as const;
 
 export async function getCategories(): Promise<Category[]> {
-  const supabase = createAdminClient();
+  const supabase = await createClient();
   const { data } = await supabase
     .from("categories")
     .select("id, name, slug, thumbnail_url, sort_order")
@@ -55,7 +54,7 @@ export async function getCategories(): Promise<Category[]> {
 }
 
 export async function getInstructors(): Promise<Instructor[]> {
-  const supabase = createAdminClient();
+  const supabase = await createClient();
   const { data } = await supabase
     .from("instructors")
     .select("id, name, belt, photo_url, bio, achievements")
@@ -74,7 +73,7 @@ export interface FreeLesson {
 }
 
 export async function getFreeLessons(): Promise<FreeLesson[]> {
-  const supabase = createAdminClient();
+  const supabase = await createClient();
   const { data } = await supabase
     .from("lessons")
     .select(`id, slug, title, duration, course:courses!inner(slug, title, thumbnail_url, is_published)`)
@@ -114,7 +113,7 @@ export async function getFreeCourses(): Promise<Course[]> {
 }
 
 export async function getCourses(limit = 100): Promise<Course[]> {
-  const supabase = createAdminClient();
+  const supabase = await createClient();
   const { data } = await supabase
     .from("courses")
     .select(COURSE_SELECT)

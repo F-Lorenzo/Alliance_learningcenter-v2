@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, BookMarked, CreditCard, GraduationCap } from "lucide-react";
+import { LayoutDashboard, Users, BookMarked, CreditCard, GraduationCap, Tag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AdminRole } from "@/lib/admin-queries";
 
@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { href: "/admin/profesores", label: "Profesores", icon: GraduationCap, exact: false, roles: ["super_admin", "admin", "admin_profesor", "profesor"] },
   { href: "/admin/usuarios", label: "Usuarios", icon: Users, exact: false, roles: ["super_admin", "admin", "admin_profesor"] },
   { href: "/admin/cobros", label: "Cobros", icon: CreditCard, exact: false, roles: ["super_admin", "admin", "admin_profesor"] },
+  { href: "/admin/cupones", label: "Cupones", icon: Tag, exact: false, roles: ["super_admin", "admin", "admin_profesor"] },
 ];
 
 interface Props {

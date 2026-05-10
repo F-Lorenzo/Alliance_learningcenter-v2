@@ -41,7 +41,7 @@ export function PricingSection() {
             </span>
             <p className="text-sm text-text-secondary mb-2">Anual</p>
             <p className="text-4xl font-medium text-text-primary font-mono">
-              $96.000
+              $199.000
             </p>
             <p className="text-sm text-text-secondary mt-1">
               ARS por año · 2 meses gratis

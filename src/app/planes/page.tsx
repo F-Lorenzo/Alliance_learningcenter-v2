@@ -31,12 +31,12 @@ const PLAN_MONTHLY = {
 const PLAN_YEARLY = {
   id: "yearly",
   name: "Anual",
-  price: "$96.000",
+  price: "$199.000",
   period: "ARS por año",
-  features: [...FEATURES_SHARED, "Cancelás cuando quieras", "2 meses gratis incluidos"],
+  features: [...FEATURES_SHARED, "Cancelás cuando quieras", "Ahorrás $41.000 vs mensual"],
   highlighted: true,
-  tag: "Ahorrás 2 meses",
-  savings: "Equivale a $8.000/mes",
+  tag: "Mejor precio",
+  savings: "Equivale a $16.583/mes",
 };
 
 export default async function PlanesPage() {

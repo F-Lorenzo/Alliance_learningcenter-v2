@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local dev/utility scripts (may contain credentials)
+extract-thumbnails.mjs
