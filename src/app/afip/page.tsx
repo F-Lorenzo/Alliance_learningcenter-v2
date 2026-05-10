@@ -138,21 +138,6 @@ export default function AfipPage() {
         </section>
 
         <section>
-          <h2 className="text-base font-semibold text-text-primary mb-3">Verificación en AFIP</h2>
-          <p>
-            Todos los comprobantes emitidos por Alliance Learning Center son válidos y pueden verificarse en el portal oficial de AFIP mediante el CAE incluido en la factura.
-          </p>
-          <a
-            href="https://www.afip.gob.ar/fe/qr/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 mt-3 text-gold text-xs hover:underline"
-          >
-            Verificar comprobante en AFIP →
-          </a>
-        </section>
-
-        <section>
           <h2 className="text-base font-semibold text-text-primary mb-3">Contacto por facturación</h2>
           <p>
             Para consultas relacionadas con facturación, CUIT o comprobantes, contactanos a través de los canales oficiales de la plataforma y te responderemos a la brevedad.
