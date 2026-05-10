@@ -29,11 +29,10 @@ export default async function PlayerPage({ params }: Props) {
   const { lesson, lessons, course } = data;
 
   // Verificar acceso: lección paga requiere suscripción activa
-  if (!lesson.is_free) {
-    const sub = await getSubscription(user.id);
-    const hasAccess = sub && ["active", "trialing"].includes(sub.status);
-    if (!hasAccess) redirect("/planes");
-  }
+  const sub = await getSubscription(user.id);
+  const hasActivePlan = !!(sub && ["active", "trialing"].includes(sub.status));
+
+  if (!lesson.is_free && !hasActivePlan) redirect("/planes");
 
   const lessonIndex = lessons.findIndex((l) => l.slug === lessonSlug);
   const prevLesson = lessonIndex > 0 ? lessons[lessonIndex - 1] : null;
@@ -70,6 +69,7 @@ export default async function PlayerPage({ params }: Props) {
           nextLesson={nextLesson}
           userEmail={user.email}
           initialProgress={progress.watched_seconds}
+          hasActivePlan={hasActivePlan}
         />
       </div>
     </div>

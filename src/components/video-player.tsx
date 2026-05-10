@@ -2,10 +2,11 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Play, Pause, Volume2, VolumeX, Maximize,
   ChevronLeft, ChevronRight, CheckCircle, Circle, RotateCcw, RotateCw, Loader2,
-  AlertCircle, Trash2,
+  AlertCircle, Trash2, Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,7 @@ interface VideoPlayerProps {
   nextLesson: Lesson | null;
   userEmail?: string;
   initialProgress?: number; // segundos donde retomar
+  hasActivePlan?: boolean;
 }
 
 function fmt(s: number) {
@@ -82,7 +84,8 @@ function setCachedUrl(lessonId: string, url: string, ttlSeconds = 7200) {
   }
 }
 
-export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, userEmail, initialProgress = 0 }: VideoPlayerProps) {
+export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, userEmail, initialProgress = 0, hasActivePlan = false }: VideoPlayerProps) {
+  const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [loadingUrl, setLoadingUrl] = useState(false);
@@ -103,6 +106,16 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
   const completedRef = useRef(false); // shadow ref para evitar stale closure en callbacks
   const [countdown, setCountdown] = useState<number | null>(null);
   const [watermarkPos, setWatermarkPos] = useState({ top: "10%", right: "2%" });
+
+  /** Navega a la siguiente lección chequeando plan activo si la lección es paga */
+  function goToNext() {
+    if (!nextLesson) return;
+    if (!nextLesson.is_free && !hasActivePlan) {
+      router.push("/planes");
+      return;
+    }
+    router.push(`/modulos/${slug}/${nextLesson.slug}`);
+  }
   const [progressError, setProgressError] = useState(false);
   const controlsTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -403,6 +416,12 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
     }
   }
 
+  /* Auto-navega cuando el countdown llega a 0 */
+  useEffect(() => {
+    if (countdown === 0) goToNext();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [countdown]);
+
   function handleEnded() {
     setPlaying(false);
     if (nextLesson) {
@@ -588,12 +607,19 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
           {countdown !== null && nextLesson && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-20">
               <div className="text-center">
-                <p className="text-white text-lg font-medium mb-2">Siguiente técnica en {countdown}…</p>
-                <p className="text-white/60 text-sm mb-6">{nextLesson.title}</p>
-                <div className="flex gap-3 justify-center">
-                  <Link href={`/modulos/${slug}/${nextLesson.slug}`}>
-                    <Button variant="primary" size="md">Ir ahora</Button>
-                  </Link>
+                <p className="text-white text-lg font-medium mb-2">
+                  Siguiente técnica en {countdown}…
+                </p>
+                <p className="text-white/60 text-sm mb-1">{nextLesson.title}</p>
+                {!nextLesson.is_free && !hasActivePlan && (
+                  <p className="text-gold text-xs mb-4 flex items-center justify-center gap-1">
+                    <Lock className="w-3 h-3" /> Requiere plan activo
+                  </p>
+                )}
+                <div className="flex gap-3 justify-center mt-4">
+                  <Button variant="primary" size="md" onClick={goToNext}>
+                    {!nextLesson.is_free && !hasActivePlan ? "Ver planes" : "Ir ahora"}
+                  </Button>
                   <Button variant="secondary" size="md" onClick={() => setCountdown(null)}>
                     Quedarme acá
                   </Button>
@@ -617,11 +643,12 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
               </Link>
             ) : <div />}
             {nextLesson && (
-              <Link href={`/modulos/${slug}/${nextLesson.slug}`}>
-                <Button variant="ghost" size="sm">
-                  Siguiente técnica <ChevronRight className="w-4 h-4" />
-                </Button>
-              </Link>
+              <Button variant="ghost" size="sm" onClick={goToNext}>
+                {!nextLesson.is_free && !hasActivePlan
+                  ? <><Lock className="w-3.5 h-3.5" /> Siguiente técnica</>
+                  : <>Siguiente técnica <ChevronRight className="w-4 h-4" /></>
+                }
+              </Button>
             )}
           </div>
         </div>
