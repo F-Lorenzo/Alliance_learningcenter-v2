@@ -86,13 +86,6 @@ export function Navbar({ user, onLogout }: NavbarProps) {
                       >
                         Mi cuenta
                       </Link>
-                      <Link
-                        href="/dashboard/favoritos"
-                        className="block px-4 py-2.5 text-sm text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors"
-                        onClick={() => setAvatarOpen(false)}
-                      >
-                        Mis favoritos
-                      </Link>
                       <hr className="border-border-default" />
                       <form action={onLogout}>
                         <button
