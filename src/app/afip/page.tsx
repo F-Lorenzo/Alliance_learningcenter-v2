@@ -57,7 +57,7 @@ export default function AfipPage() {
           <h2 className="text-base font-semibold text-text-primary mb-3">¿Cómo recibo mi factura?</h2>
           <ol className="list-decimal list-inside space-y-3">
             <li>
-              <strong className="text-text-primary">Completá tus datos fiscales</strong> en <Link href="/cuenta" className="text-gold hover:underline">Mi cuenta</Link>: CUIT/CUIL, razón social y condición ante AFIP (Consumidor Final, Responsable Inscripto, Monotributista, etc.).
+              <strong className="text-text-primary">Completá tus datos fiscales</strong> en <Link href="/dashboard/cuenta" className="text-gold hover:underline">Mi cuenta</Link>: CUIT/CUIL, razón social y condición ante AFIP (Consumidor Final, Responsable Inscripto, Monotributista, etc.).
             </li>
             <li>
               <strong className="text-text-primary">Al realizarse cada cobro</strong> (mensual o anual), generamos el comprobante electrónico de forma automática.
