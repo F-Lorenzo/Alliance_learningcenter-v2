@@ -345,6 +345,25 @@ function CategoryGrid({
   );
 }
 
+// ── Mapa de subcategorías (UI only, sin cambio de DB) ─────────────────────
+// Cada entrada define: nombre de subcategoría + función que matchea el título del curso.
+// Si un curso no matchea ninguna subcategoría, va a "Otros".
+const SUBCATEGORY_MAP: Record<
+  string,
+  { name: string; match: (title: string) => boolean }[]
+> = {
+  "Pasajes": [
+    {
+      name: "Pasajes Versus",
+      match: (t) => /DLR|One[\s-]?Leg|Ara[nñ]a|Aranha/i.test(t),
+    },
+    {
+      name: "Pasajes con Dominio Propio",
+      match: (t) => /Guardia Abierta/i.test(t),
+    },
+  ],
+};
+
 // ── Vista de cursos dentro de una categoría ────────────────────────────────
 function CoursesInCategory({
   categoryName,
@@ -361,13 +380,15 @@ function CoursesInCategory({
   const [sort, setSort] = useState("newest");
   const [page, setPage] = useState(1);
   const theme = getCategoryTheme(categoryName);
+  const subcategories = SUBCATEGORY_MAP[categoryName] ?? null;
 
-  const filtered = useMemo(() => {
-    let result = courses.filter((c) => c.categories.includes(categoryName));
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      result = result.filter((c) => c.title.toLowerCase().includes(q));
-    }
+  const inCategory = useMemo(
+    () => courses.filter((c) => c.categories.includes(categoryName)),
+    [courses, categoryName]
+  );
+
+  const sorted = useMemo(() => {
+    const result = [...inCategory];
     switch (sort) {
       case "newest": result.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()); break;
       case "oldest": result.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()); break;
@@ -376,10 +397,34 @@ function CoursesInCategory({
       case "longest": result.sort((a, b) => b.total_duration - a.total_duration); break;
     }
     return result;
-  }, [courses, categoryName, search, sort]);
+  }, [inCategory, sort]);
 
-  const visible = filtered.slice(0, page * PAGE_SIZE);
-  const hasMore = visible.length < filtered.length;
+  const filtered = useMemo(() => {
+    if (!search.trim()) return sorted;
+    const q = search.toLowerCase();
+    return sorted.filter((c) => c.title.toLowerCase().includes(q));
+  }, [sorted, search]);
+
+  /* ── Agrupación en subcategorías ── */
+  const groups = useMemo(() => {
+    if (!subcategories) return null;
+    const buckets = new Map<string, Course[]>(subcategories.map((s) => [s.name, []]));
+    const others: Course[] = [];
+    filtered.forEach((course) => {
+      const sub = subcategories.find((s) => s.match(course.title));
+      if (sub) buckets.get(sub.name)!.push(course);
+      else others.push(course);
+    });
+    const result: { name: string; courses: Course[] }[] = subcategories
+      .map((s) => ({ name: s.name, courses: buckets.get(s.name)! }))
+      .filter((g) => g.courses.length > 0);
+    if (others.length) result.push({ name: "Otros", courses: others });
+    return result;
+  }, [subcategories, filtered]);
+
+  /* En modo flat (sin subcategorías) usamos paginación */
+  const visible = groups ? filtered : filtered.slice(0, page * PAGE_SIZE);
+  const hasMore = !groups && visible.length < filtered.length;
 
   return (
     <div className="max-w-[1280px] mx-auto px-6">
@@ -429,7 +474,7 @@ function CoursesInCategory({
         </select>
       </div>
 
-      {visible.length === 0 ? (
+      {filtered.length === 0 ? (
         <div className="text-center py-20 flex flex-col items-center gap-4">
           <div className="w-16 h-16 rounded-full bg-bg-secondary border border-border-default flex items-center justify-center">
             <span className="text-2xl">🥋</span>
@@ -452,7 +497,29 @@ function CoursesInCategory({
             </>
           )}
         </div>
+      ) : groups ? (
+        /* ── Vista con subcategorías ── */
+        <div className="space-y-12 pb-20">
+          {groups.map((group) => (
+            <section key={group.name}>
+              {/* Header de subcategoría */}
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-1 h-5 rounded-full" style={{ background: theme.accent }} />
+                <h2 className="text-base font-semibold text-text-primary">{group.name}</h2>
+                <span className="text-xs text-text-tertiary">
+                  {group.courses.length} módulo{group.courses.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                {group.courses.map((course) => (
+                  <CourseCard key={course.id} course={course} showProgress={isLoggedIn} />
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
       ) : (
+        /* ── Vista flat (sin subcategorías) ── */
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 pb-20">
             {visible.map((course) => (
