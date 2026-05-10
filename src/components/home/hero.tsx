@@ -61,7 +61,7 @@ export function Hero() {
           transition={{ delay: 1.0, duration: 0.5 }}
           className="flex flex-col sm:flex-row gap-4 justify-center mt-10"
         >
-          <Link href="/planes">
+          <Link href="/modulos">
             <Button variant="primary" size="lg">
               Comenzar ahora
             </Button>
