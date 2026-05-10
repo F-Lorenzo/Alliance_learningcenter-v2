@@ -19,7 +19,7 @@ export function PricingSection() {
           <div className="bg-bg-secondary rounded-xl p-8 border border-border-default">
             <p className="text-sm text-text-secondary mb-2">Mensual</p>
             <p className="text-4xl font-medium text-text-primary font-mono">
-              $10.000
+              $20.000
             </p>
             <p className="text-sm text-text-secondary mt-1">ARS por mes</p>
             <p className="text-xs text-text-tertiary mt-4">

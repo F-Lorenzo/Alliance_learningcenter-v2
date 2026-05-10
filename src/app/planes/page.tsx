@@ -20,7 +20,7 @@ const FEATURES_SHARED = [
 const PLAN_MONTHLY = {
   id: "monthly",
   name: "Mensual",
-  price: "$10.000",
+  price: "$20.000",
   period: "ARS por mes",
   features: [...FEATURES_SHARED, "Cancelás cuando quieras"],
   highlighted: false,

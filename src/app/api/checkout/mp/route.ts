@@ -7,7 +7,7 @@ const PLANS = {
     reason: "Alliance Learning Center — Plan Mensual",
     frequency: 1,
     frequency_type: "months" as const,
-    transaction_amount: 10000,
+    transaction_amount: 20000,
   },
   yearly: {
     reason: "Alliance Learning Center — Plan Anual",

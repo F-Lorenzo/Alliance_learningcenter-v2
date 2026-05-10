@@ -52,7 +52,7 @@ export function Hero() {
           className="text-lg text-text-secondary mt-6 max-w-md mx-auto leading-relaxed"
         >
           Técnica por técnica · Acceso ilimitado a más de 20 sistemas · Desde{" "}
-          <span className="text-text-primary">$10.000 ARS</span> al mes
+          <span className="text-text-primary">$20.000 ARS</span> al mes
         </motion.p>
 
         <motion.div
