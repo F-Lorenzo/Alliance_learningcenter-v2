@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BookOpen, LogOut } from "lucide-react";
+import { ShieldCheck, LogOut } from "lucide-react";
 import { getCurrentUser } from "@/lib/queries";
 import { getAdminCurrentRole } from "@/lib/admin-queries";
 import { logout } from "@/app/actions";
@@ -22,7 +22,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <aside className="w-60 shrink-0 flex flex-col border-r border-border-default bg-bg-secondary fixed inset-y-0 left-0 z-30">
         {/* Logo */}
         <div className="h-16 flex items-center gap-2.5 px-5 border-b border-border-default">
-          <BookOpen className="w-5 h-5 text-gold" />
+          <ShieldCheck className="w-5 h-5 text-gold" />
           <div className="leading-tight">
             <p className="text-sm font-medium text-text-primary">ALLIANCE</p>
             <p className="text-[10px] text-text-tertiary uppercase tracking-widest">Admin</p>
