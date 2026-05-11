@@ -47,7 +47,7 @@ export function PricingSection() {
               ARS por año · 2 meses gratis
             </p>
             <p className="text-xs text-text-tertiary mt-4">
-              Equivalente a $8.000 por mes
+              Equivalente a $16.583 por mes
             </p>
             <div className="mt-6">
               <Link href="/planes">
