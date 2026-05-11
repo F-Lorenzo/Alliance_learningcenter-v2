@@ -263,11 +263,13 @@ export async function deleteInstructor(id: string) {
 /**
  * Activa o desactiva manualmente la suscripción de un usuario desde el panel admin.
  * - Si está activa/trialing → la cancela (status = "canceled").
- * - Si no tiene o está cancelada → crea/reactiva con status = "active" por 1 año.
+ * - Si no tiene o está cancelada → crea/reactiva con status = "active".
+ *   `plan` determina la duración: "monthly" = 1 mes, "yearly" = 1 año.
  */
 export async function toggleSubscription(
   userId: string,
-  currentStatus: string | null
+  currentStatus: string | null,
+  plan: "monthly" | "yearly" = "yearly"
 ) {
   await requireAdminRole();
   const db = createAdminClient();
@@ -281,23 +283,28 @@ export async function toggleSubscription(
       .eq("user_id", userId)
       .in("status", ["active", "trialing"]);
   } else {
-    // Activar: buscar fila existente para reutilizar el plan
+    // Activar: calcular fecha de fin según plan elegido
+    const periodEnd = new Date();
+    if (plan === "monthly") {
+      periodEnd.setMonth(periodEnd.getMonth() + 1);
+    } else {
+      periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+    }
+
     const { data: existing } = await db
       .from("subscriptions")
-      .select("id, plan")
+      .select("id")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-
-    const periodEnd = new Date();
-    periodEnd.setFullYear(periodEnd.getFullYear() + 1); // 1 año
 
     if (existing) {
       await db
         .from("subscriptions")
         .update({
           status: "active",
+          plan,
           current_period_end: periodEnd.toISOString(),
         })
         .eq("id", existing.id);
@@ -305,7 +312,7 @@ export async function toggleSubscription(
       await db.from("subscriptions").insert({
         user_id: userId,
         status: "active",
-        plan: "yearly",
+        plan,
         current_period_end: periodEnd.toISOString(),
       });
     }
