@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, BookOpen } from "lucide-react";
+import { ArrowLeft, GraduationCap } from "lucide-react";
 import { VideoPlayer } from "@/components/video-player";
 import { getLessonWithCourse, getCurrentUser, getSubscription, getLessonProgress } from "@/lib/queries";
 import type { Metadata } from "next";
@@ -53,7 +53,7 @@ export default async function PlayerPage({ params }: Props) {
           Volver al módulo
         </Link>
         <div className="flex items-center gap-2">
-          <BookOpen className="w-4 h-4 text-gold" />
+          <GraduationCap className="w-4 h-4 text-gold" />
           <span className="text-sm font-medium text-text-primary tracking-wide hidden sm:block">ALLIANCE</span>
         </div>
         <div className="w-24" />

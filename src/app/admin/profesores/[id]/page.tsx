@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft, BookOpen, Eye, EyeOff } from "lucide-react";
+import { ChevronLeft, BookMarked, Eye, EyeOff } from "lucide-react";
 import { getAdminInstructor, getAdminInstructorCourses } from "@/lib/admin-queries";
 import { updateInstructor, deleteInstructor } from "@/app/admin/actions";
 import { InstructorForm } from "../instructor-form";
@@ -73,7 +73,7 @@ export default async function EditProfesorPage({ params }: Props) {
         <aside className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-medium text-text-primary flex items-center gap-2">
-              <BookOpen className="w-4 h-4 text-text-tertiary" />
+              <BookMarked className="w-4 h-4 text-text-tertiary" />
               Cursos asignados
             </h2>
             <span className="text-xs text-text-tertiary bg-bg-tertiary px-2 py-0.5 rounded-full">
