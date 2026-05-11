@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { Menu, X, GraduationCap, ChevronDown } from "lucide-react";
+import { Menu, X, BookOpen, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -33,7 +33,7 @@ export function Navbar({ user, onLogout }: NavbarProps) {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3">
             <div className="flex items-center gap-2">
-              <GraduationCap className="w-6 h-6 text-gold" />
+              <BookOpen className="w-6 h-6 text-gold" />
               <span className="text-text-primary font-medium text-sm tracking-wide">
                 ALLIANCE
               </span>

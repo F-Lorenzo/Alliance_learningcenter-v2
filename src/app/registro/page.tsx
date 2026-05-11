@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, GraduationCap } from "lucide-react";
+import { Eye, EyeOff, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -84,7 +84,7 @@ export default function RegistroPage() {
     <main className="min-h-screen flex items-center justify-center px-6 bg-bg-primary">
       <div className="w-full max-w-sm">
         <div className="flex items-center justify-center gap-2 mb-8">
-          <GraduationCap className="w-6 h-6 text-gold" />
+          <BookOpen className="w-6 h-6 text-gold" />
           <span className="text-text-primary font-medium tracking-wide">ALLIANCE</span>
           <span className="text-[11px] text-text-tertiary uppercase tracking-widest">Learning Center</span>
         </div>

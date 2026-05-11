@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { GraduationCap, MessageCircle } from "lucide-react";
+import { BookOpen, MessageCircle } from "lucide-react";
 
 export function Footer() {
   return (
@@ -9,7 +9,7 @@ export function Footer() {
           {/* Col 1: Marca */}
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <GraduationCap className="w-5 h-5 text-gold" />
+              <BookOpen className="w-5 h-5 text-gold" />
               <span className="text-text-primary font-medium text-sm tracking-wide">
                 ALLIANCE
               </span>

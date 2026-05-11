@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { GraduationCap, ArrowLeft, CheckCircle } from "lucide-react";
+import { BookOpen, ArrowLeft, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function RecuperarPage() {
@@ -27,7 +27,7 @@ export default function RecuperarPage() {
     <main className="min-h-screen flex items-center justify-center px-6 bg-bg-primary">
       <div className="w-full max-w-sm">
         <div className="flex items-center justify-center gap-2 mb-8">
-          <GraduationCap className="w-6 h-6 text-gold" />
+          <BookOpen className="w-6 h-6 text-gold" />
           <span className="text-text-primary font-medium tracking-wide">ALLIANCE</span>
           <span className="text-[11px] text-text-tertiary uppercase tracking-widest">Learning Center</span>
         </div>
