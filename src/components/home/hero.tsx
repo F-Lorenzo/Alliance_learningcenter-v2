@@ -55,10 +55,19 @@ export function Hero() {
           <span className="text-text-primary">$20.000 ARS</span> al mes
         </motion.p>
 
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1.0, duration: 0.6 }}
+          className="text-sm text-gold/80 mt-2 tracking-wide"
+        >
+          Actualizaciones con nuevas técnicas todas las semanas
+        </motion.p>
+
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.0, duration: 0.5 }}
+          transition={{ delay: 1.2, duration: 0.5 }}
           className="flex flex-col sm:flex-row gap-4 justify-center mt-10"
         >
           <Link href="/modulos">
