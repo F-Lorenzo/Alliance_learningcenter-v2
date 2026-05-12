@@ -102,6 +102,16 @@ export default async function PlanesPage() {
             Pago con Mercado Pago · Tarjeta, efectivo o cuenta MP
           </p>
 
+          {/* Banner miembros Alliance */}
+          <div className="mt-8 mx-auto max-w-xl bg-gold/8 border border-gold/25 rounded-xl px-6 py-4 text-center">
+            <p className="text-sm font-semibold text-gold">
+              🥋 Miembros Alliance y academias asociadas — 50% OFF
+            </p>
+            <p className="text-xs text-text-secondary mt-1.5 leading-relaxed">
+              Si entrenas en una academia Alliance o afiliada, pedile tu código de descuento a tu profesor o encargado de academia.
+            </p>
+          </div>
+
           {/* FAQ rápido */}
           <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-6 border-t border-border-default pt-12">
             {[
