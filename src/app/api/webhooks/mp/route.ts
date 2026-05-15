@@ -56,6 +56,8 @@ export async function POST(request: Request) {
   // ── Deduplicación atómica: upsert con ignoreDuplicates ────────────────
   // Si event_id ya existe (UNIQUE constraint), el insert se ignora y
   // rowsAffected = 0. Así evitamos race conditions entre requests paralelos.
+  // Si la tabla no existe aún, logueamos el error pero continuamos procesando
+  // para no bloquear la activación de suscripciones.
   const { data: inserted, error: insertError } = await db
     .from("webhook_events")
     .upsert(
@@ -72,10 +74,9 @@ export async function POST(request: Request) {
 
   if (insertError) {
     console.error("[webhooks/mp] Error registrando evento:", insertError.message);
-  }
-
-  if (!inserted) {
-    // Ya existía — responder idempotente
+    // Si la tabla no existe, seguimos procesando igual (no bloqueamos el flujo de pago)
+  } else if (!inserted) {
+    // Tabla ok pero el evento ya existía — responder idempotente
     return NextResponse.json({ ok: true, duplicate: true });
   }
 
