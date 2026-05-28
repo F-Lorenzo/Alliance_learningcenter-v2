@@ -9,6 +9,7 @@ import { FreeSample } from "@/components/home/free-sample";
 import { Testimonials } from "@/components/home/testimonials";
 import { PricingSection } from "@/components/home/pricing-section";
 import { FaqSection } from "@/components/home/faq-section";
+import { NewContentBanner } from "@/components/home/new-content-banner";
 import { getCategories, getInstructors, getFreeLessons, getCurrentUser } from "@/lib/queries";
 import { logout } from "@/app/actions";
 
@@ -27,6 +28,7 @@ export default async function HomePage() {
       <Navbar user={navUser} onLogout={logout} />
       <main className="flex-1">
         <Hero />
+        <NewContentBanner />
         <StatsBar />
         <HowItWorks />
         <CategoriesGrid categories={categories} />
