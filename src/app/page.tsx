@@ -10,15 +10,17 @@ import { Testimonials } from "@/components/home/testimonials";
 import { PricingSection } from "@/components/home/pricing-section";
 import { FaqSection } from "@/components/home/faq-section";
 import { NewContentBanner } from "@/components/home/new-content-banner";
-import { getCategories, getInstructors, getFreeLessons, getCurrentUser } from "@/lib/queries";
+import { LatestModuleBanner } from "@/components/home/latest-module-banner";
+import { getCategories, getInstructors, getFreeLessons, getCurrentUser, getLatestCourse } from "@/lib/queries";
 import { logout } from "@/app/actions";
 
 export default async function HomePage() {
-  const [categories, instructors, freeLessons, user] = await Promise.all([
+  const [categories, instructors, freeLessons, user, latestCourse] = await Promise.all([
     getCategories(),
     getInstructors(),
     getFreeLessons(),
     getCurrentUser(),
+    getLatestCourse(),
   ]);
 
   const navUser = user ? { name: user.name, email: user.email } : null;
@@ -29,6 +31,7 @@ export default async function HomePage() {
       <main className="flex-1">
         <Hero />
         <NewContentBanner />
+        {latestCourse && <LatestModuleBanner course={latestCourse} />}
         <StatsBar />
         <HowItWorks />
         <CategoriesGrid categories={categories} />

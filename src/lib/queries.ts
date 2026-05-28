@@ -101,6 +101,19 @@ export async function getFreeLessons(): Promise<FreeLesson[]> {
     }));
 }
 
+export async function getLatestCourse(): Promise<Course | null> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("courses")
+    .select(COURSE_SELECT)
+    .eq("is_published", true)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!data) return null;
+  return transformCourse(data as Record<string, unknown>);
+}
+
 export async function getFreeCourses(): Promise<Course[]> {
   const supabase = await createClient();
   const { data } = await supabase
