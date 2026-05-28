@@ -6,7 +6,7 @@ export const MOCK_CATEGORIES: Category[] = [
   { id: "3", name: "Escapes", slug: "escapes", sort_order: 3, course_count: 5 },
   { id: "4", name: "Espalda", slug: "espalda", sort_order: 4, course_count: 4 },
   { id: "5", name: "Controles", slug: "controles", sort_order: 5, course_count: 7 },
-  { id: "6", name: "Derribos", slug: "derribos", sort_order: 6, course_count: 3 },
+  { id: "6", name: "Lucha de Pie", slug: "lucha-de-pie", sort_order: 6, course_count: 3 },
   { id: "7", name: "Fundamentos", slug: "fundamentos", sort_order: 7, course_count: 6 },
   { id: "8", name: "Defensa personal", slug: "defensa-personal", sort_order: 8, course_count: 2 },
 ];

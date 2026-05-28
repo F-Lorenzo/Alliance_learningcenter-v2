@@ -49,6 +49,7 @@ export async function getCategories(): Promise<Category[]> {
   const { data } = await supabase
     .from("categories")
     .select("id, name, slug, thumbnail_url, sort_order")
+    .neq("slug", "derribos")
     .order("sort_order");
   return (data ?? []) as Category[];
 }

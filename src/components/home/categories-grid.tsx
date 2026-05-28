@@ -11,7 +11,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   escapes: "from-green-900/40",
   espalda: "from-red-900/40",
   controles: "from-yellow-900/40",
-  derribos: "from-orange-900/40",
+  "lucha-de-pie": "from-orange-900/40",
   fundamentos: "from-teal-900/40",
   "defensa-personal": "from-rose-900/40",
 };
