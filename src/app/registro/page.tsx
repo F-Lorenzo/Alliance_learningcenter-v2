@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, BookOpen } from "lucide-react";
+import { Eye, EyeOff, BookOpen, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -50,6 +50,7 @@ export default function RegistroPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -68,6 +69,12 @@ export default function RegistroPage() {
       setLoading(false);
       return;
     }
+    setLoading(false);
+    setShowConfirmModal(true);
+  }
+
+  function handleModalContinue() {
+    setShowConfirmModal(false);
     router.push("/dashboard");
     router.refresh();
   }
@@ -81,6 +88,32 @@ export default function RegistroPage() {
   }
 
   return (
+    <>
+      {/* Modal de confirmación de email */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-6 bg-black/70 backdrop-blur-sm">
+          <div className="w-full max-w-sm bg-bg-secondary border border-border-default rounded-2xl p-8 flex flex-col items-center text-center shadow-2xl">
+            <div className="w-16 h-16 rounded-full bg-gold/10 border border-gold/20 flex items-center justify-center mb-5">
+              <Mail className="w-7 h-7 text-gold" />
+            </div>
+            <h2 className="text-lg font-semibold text-text-primary mb-2">
+              Revisá tu correo
+            </h2>
+            <p className="text-sm text-text-secondary leading-relaxed mb-1">
+              Te enviamos un mail a
+            </p>
+            <p className="text-sm font-medium text-gold mb-4 break-all">{email}</p>
+            <p className="text-sm text-text-secondary leading-relaxed mb-6">
+              Hacé clic en el link de confirmación para activar tu cuenta.
+              Si no lo ves, revisá la carpeta de spam.
+            </p>
+            <Button variant="primary" size="lg" fullWidth onClick={handleModalContinue}>
+              Entendido, ir al inicio
+            </Button>
+          </div>
+        </div>
+      )}
+
     <main className="min-h-screen flex items-center justify-center px-6 bg-bg-primary">
       <div className="w-full max-w-sm">
         <div className="flex items-center justify-center gap-2 mb-8">
@@ -186,5 +219,6 @@ export default function RegistroPage() {
         </div>
       </div>
     </main>
+    </>
   );
 }
