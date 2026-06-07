@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Fondo oscuro -->
+  <rect width="32" height="32" rx="6" fill="#0f0e0d"/>
+  <!-- Libro abierto (BookOpen) en dorado -->
+  <g stroke="#c9a84c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <!-- lomo central -->
+    <line x1="16" y1="10" x2="16" y2="24"/>
+    <!-- tapa izquierda -->
+    <path d="M7 10 C7 10 10 9 16 10 L16 24 C10 23 7 24 7 24 Z"/>
+    <!-- tapa derecha -->
+    <path d="M25 10 C25 10 22 9 16 10 L16 24 C22 23 25 24 25 24 Z"/>
+  </g>
+</svg>
