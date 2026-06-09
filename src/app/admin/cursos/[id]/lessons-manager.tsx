@@ -36,6 +36,7 @@ interface Lesson {
   video_url: string | null;
   is_free: boolean;
   sort_order: number;
+  section_title: string | null;
 }
 
 interface Props {
@@ -147,6 +148,12 @@ function EditLessonForm({ lesson, courseId, onSubmit, onCancel }: {
         <LessonField label="Duración (seg)" name="duration" type="number" defaultValue={lesson.duration} />
         <LessonField label="Orden" name="sort_order" type="number" defaultValue={lesson.sort_order} />
       </div>
+      <LessonField
+        label="Título de sección (opcional — aparece como separador antes de esta lección)"
+        name="section_title"
+        placeholder="Ej: Conceptos, Técnicas avanzadas…"
+        defaultValue={lesson.section_title ?? ""}
+      />
       <label className="flex items-center gap-2 cursor-pointer">
         <input type="checkbox" name="is_free" value="true" defaultChecked={lesson.is_free} className="w-3.5 h-3.5 rounded" />
         <span className="text-xs text-text-secondary">Lección gratuita</span>
@@ -212,6 +219,11 @@ function SortableLesson({
       </span>
 
       <div className="flex-1 min-w-0">
+        {lesson.section_title && (
+          <p className="text-[10px] text-gold/70 uppercase tracking-wider font-medium mb-0.5 truncate">
+            ── {lesson.section_title}
+          </p>
+        )}
         <p className="text-sm text-text-primary truncate leading-tight">{lesson.title}</p>
         {lesson.description && (
           <p className="text-xs text-text-tertiary truncate mt-0.5 leading-tight">{lesson.description}</p>

@@ -174,6 +174,7 @@ export async function updateLesson(
       video_url: (formData.get("video_url") as string) || null,
       is_free: formData.get("is_free") === "true",
       sort_order: parseInt(formData.get("sort_order") as string) || 1,
+      section_title: (formData.get("section_title") as string) || null,
     })
     .eq("id", lessonId);
 

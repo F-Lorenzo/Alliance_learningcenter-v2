@@ -181,7 +181,7 @@ export async function getAdminCourse(id: string) {
       total_duration, is_free, is_published, is_new, is_featured,
       instructor_id,
       course_categories(category_id),
-      lessons(id, slug, title, description, duration, video_url, is_free, sort_order)`
+      lessons(id, slug, title, description, duration, video_url, is_free, sort_order, section_title)`
     )
     .eq("id", id)
     .maybeSingle();
@@ -204,6 +204,7 @@ export async function getAdminCourse(id: string) {
         video_url: string | null;
         is_free: boolean;
         sort_order: number;
+        section_title: string | null;
       }>) ?? []
     ).sort((a, b) => a.sort_order - b.sort_order),
   };

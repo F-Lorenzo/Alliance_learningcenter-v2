@@ -19,6 +19,7 @@ interface Lesson {
   is_free: boolean;
   sort_order: number;
   video_url?: string | null;
+  section_title?: string | null;
 }
 
 interface VideoPlayerProps {
@@ -684,34 +685,44 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
                 const isCurrent = l.id === lesson.id;
                 const isCompleted = l.sort_order < lesson.sort_order;
                 return (
-                  <Link
-                    key={l.id}
-                    href={`/modulos/${slug}/${l.slug}`}
-                    className={cn(
-                      "flex items-center gap-3 px-4 py-3 hover:bg-bg-secondary transition-colors border-b border-border-default",
-                      isCurrent && "bg-bg-secondary border-l-2 border-gold"
+                  <div key={l.id}>
+                    {l.section_title && (
+                      <div className="flex items-center gap-2 px-4 py-1.5 bg-bg-primary border-b border-border-default">
+                        <div className="h-px flex-1 bg-border-default" />
+                        <span className="text-[10px] font-semibold uppercase tracking-widest text-text-tertiary shrink-0">
+                          {l.section_title}
+                        </span>
+                        <div className="h-px flex-1 bg-border-default" />
+                      </div>
                     )}
-                  >
-                    <span className="text-xs font-mono text-text-tertiary w-6 shrink-0">
-                      {String(l.sort_order).padStart(2, "0")}
-                    </span>
-                    {isCompleted ? (
-                      <CheckCircle className="w-3.5 h-3.5 text-success shrink-0" />
-                    ) : isCurrent ? (
-                      <Play className="w-3.5 h-3.5 text-gold fill-gold shrink-0" />
-                    ) : (
-                      <Circle className="w-3.5 h-3.5 text-text-tertiary shrink-0" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className={cn(
-                        "text-sm truncate",
-                        isCurrent ? "text-gold font-medium" : "text-text-primary"
-                      )}>
-                        {l.title}
-                      </p>
-                      <p className="text-xs text-text-secondary">{fmt(l.duration)}</p>
-                    </div>
-                  </Link>
+                    <Link
+                      href={`/modulos/${slug}/${l.slug}`}
+                      className={cn(
+                        "flex items-center gap-3 px-4 py-3 hover:bg-bg-secondary transition-colors border-b border-border-default",
+                        isCurrent && "bg-bg-secondary border-l-2 border-gold"
+                      )}
+                    >
+                      <span className="text-xs font-mono text-text-tertiary w-6 shrink-0">
+                        {String(l.sort_order).padStart(2, "0")}
+                      </span>
+                      {isCompleted ? (
+                        <CheckCircle className="w-3.5 h-3.5 text-success shrink-0" />
+                      ) : isCurrent ? (
+                        <Play className="w-3.5 h-3.5 text-gold fill-gold shrink-0" />
+                      ) : (
+                        <Circle className="w-3.5 h-3.5 text-text-tertiary shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className={cn(
+                          "text-sm truncate",
+                          isCurrent ? "text-gold font-medium" : "text-text-primary"
+                        )}>
+                          {l.title}
+                        </p>
+                        <p className="text-xs text-text-secondary">{fmt(l.duration)}</p>
+                      </div>
+                    </Link>
+                  </div>
                 );
               })}
             </div>

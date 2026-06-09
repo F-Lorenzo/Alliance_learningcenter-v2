@@ -168,38 +168,48 @@ export default async function ModuloPage({ params }: Props) {
                     : "/planes";
 
                   return (
-                    <Link
-                      key={lesson.id}
-                      href={href}
-                      className="flex items-center gap-4 px-4 py-3 hover:bg-bg-secondary transition-colors group border-b border-border-default last:border-b-0"
-                    >
-                      <span className="text-sm font-mono text-text-tertiary w-8 shrink-0">
-                        {String(i + 1).padStart(2, "0")}
-                      </span>
-
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-medium transition-colors truncate ${canWatch ? "text-text-primary group-hover:text-gold" : "text-text-tertiary"}`}>
-                          {lesson.title}
-                        </p>
-                        <p className="text-xs text-text-secondary mt-0.5">
-                          {formatDuration(lesson.duration)}
-                        </p>
-                      </div>
-
-                      <div className="shrink-0">
-                        {lesson.is_free && (
-                          <span className="text-[10px] bg-success/20 text-success px-2 py-0.5 rounded-sm font-medium">
-                            GRATIS
+                    <div key={lesson.id}>
+                      {lesson.section_title && (
+                        <div className="flex items-center gap-3 px-4 py-2 bg-bg-tertiary border-b border-border-default">
+                          <div className="h-px flex-1 bg-border-default" />
+                          <span className="text-[11px] font-semibold uppercase tracking-widest text-text-tertiary shrink-0">
+                            {lesson.section_title}
                           </span>
-                        )}
-                        {!lesson.is_free && !canWatch && (
-                          <Lock className="w-4 h-4 text-text-tertiary" />
-                        )}
-                        {!lesson.is_free && canWatch && (
-                          <CheckCircle className="w-4 h-4 text-text-tertiary" />
-                        )}
-                      </div>
-                    </Link>
+                          <div className="h-px flex-1 bg-border-default" />
+                        </div>
+                      )}
+                      <Link
+                        href={href}
+                        className="flex items-center gap-4 px-4 py-3 hover:bg-bg-secondary transition-colors group border-b border-border-default last:border-b-0"
+                      >
+                        <span className="text-sm font-mono text-text-tertiary w-8 shrink-0">
+                          {String(i + 1).padStart(2, "0")}
+                        </span>
+
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-medium transition-colors truncate ${canWatch ? "text-text-primary group-hover:text-gold" : "text-text-tertiary"}`}>
+                            {lesson.title}
+                          </p>
+                          <p className="text-xs text-text-secondary mt-0.5">
+                            {formatDuration(lesson.duration)}
+                          </p>
+                        </div>
+
+                        <div className="shrink-0">
+                          {lesson.is_free && (
+                            <span className="text-[10px] bg-success/20 text-success px-2 py-0.5 rounded-sm font-medium">
+                              GRATIS
+                            </span>
+                          )}
+                          {!lesson.is_free && !canWatch && (
+                            <Lock className="w-4 h-4 text-text-tertiary" />
+                          )}
+                          {!lesson.is_free && canWatch && (
+                            <CheckCircle className="w-4 h-4 text-text-tertiary" />
+                          )}
+                        </div>
+                      </Link>
+                    </div>
                   );
                 })}
               </div>

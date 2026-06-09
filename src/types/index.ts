@@ -24,6 +24,7 @@ export interface Lesson {
   is_free: boolean;
   sort_order: number;
   video_url?: string | null;
+  section_title?: string | null;
 }
 
 export interface Instructor {

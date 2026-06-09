@@ -42,3 +42,4 @@ next-env.d.ts
 
 # local dev/utility scripts (may contain credentials)
 extract-thumbnails.mjs
+scripts/tmp-thumbs/

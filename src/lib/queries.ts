@@ -31,6 +31,7 @@ function transformCourse(row: Record<string, unknown>): Course {
             is_free: l.is_free as boolean,
             sort_order: l.sort_order as number,
             video_url: (l.video_url as string | null) ?? null,
+            section_title: (l.section_title as string | null) ?? null,
           } satisfies Lesson))
       : undefined,
   };
@@ -41,7 +42,7 @@ const COURSE_SELECT = `
   total_duration, is_free, is_published, is_new, is_featured, created_at,
   instructor:instructors(id, name, belt, photo_url, bio, achievements),
   course_categories(category:categories(name)),
-  lessons(id, slug, title, duration, is_free, sort_order)
+  lessons(id, slug, title, duration, is_free, sort_order, section_title)
 ` as const;
 
 export async function getCategories(): Promise<Category[]> {
@@ -215,7 +216,7 @@ export async function getLessonWithCourse(courseSlug: string, lessonSlug: string
       .maybeSingle(),
     supabase
       .from("lessons")
-      .select("id, slug, title, duration, is_free, sort_order, video_url, course_id")
+      .select("id, slug, title, duration, is_free, sort_order, video_url, course_id, section_title")
       .eq("slug", lessonSlug)
       .maybeSingle(),
   ]);
