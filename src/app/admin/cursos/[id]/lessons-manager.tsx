@@ -103,7 +103,7 @@ function NewLessonForm({ courseId, onSubmit, onCancel }: {
         <label className="text-xs text-text-tertiary flex items-center gap-1">
           <LinkIcon className="w-3 h-3" /> Link del video
         </label>
-        <input name="video_url" type="url" placeholder="https://..." className={fieldCls} />
+        <input name="video_url" type="text" placeholder="https://..." className={fieldCls} />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <LessonField label="Duración (segundos)" name="duration" type="number" placeholder="600" />
@@ -142,7 +142,7 @@ function EditLessonForm({ lesson, courseId, onSubmit, onCancel }: {
         <label className="text-xs text-text-tertiary flex items-center gap-1">
           <LinkIcon className="w-3 h-3" /> Link del video
         </label>
-        <input name="video_url" type="url" defaultValue={lesson.video_url ?? ""} placeholder="https://..." className={fieldCls} />
+        <input name="video_url" type="text" defaultValue={lesson.video_url ?? ""} placeholder="https://..." className={fieldCls} />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <LessonField label="Duración (seg)" name="duration" type="number" defaultValue={lesson.duration} />
