@@ -358,8 +358,8 @@ const SUBCATEGORY_MAP: Record<
       match: (t) => /DLR|One[\s-]?Leg|Ara[nñ]a|Aranha/i.test(t),
     },
     {
-      name: "Pasajes con Dominio Propio",
-      match: (t) => /Guardia Abierta/i.test(t),
+      name: "Con Dominio Propio",
+      match: (t) => /Toreando|Over Under|Smash|Rodilla Cruzada|Emborcada|Leg Drag/i.test(t),
     },
   ],
 };
@@ -418,7 +418,7 @@ function CoursesInCategory({
     const result: { name: string; courses: Course[] }[] = subcategories
       .map((s) => ({ name: s.name, courses: buckets.get(s.name)! }))
       .filter((g) => g.courses.length > 0);
-    if (others.length) result.push({ name: "Otros", courses: others });
+    if (others.length) result.push({ name: "Con Dominio Propio", courses: others });
     return result;
   }, [subcategories, filtered]);
 
