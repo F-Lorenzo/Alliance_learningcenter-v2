@@ -189,6 +189,17 @@ export async function deleteLesson(lessonId: string, courseId: string) {
   revalidatePath(`/admin/cursos/${courseId}`);
 }
 
+export async function reorderLessons(courseId: string, orderedIds: string[]) {
+  await requireAdminRole();
+  const db = createAdminClient();
+  await Promise.all(
+    orderedIds.map((id, index) =>
+      db.from("lessons").update({ sort_order: index + 1 }).eq("id", id)
+    )
+  );
+  revalidatePath(`/admin/cursos/${courseId}`);
+}
+
 // ── INSTRUCTORES ───────────────────────────────────────────────
 
 export async function createInstructor(formData: FormData) {

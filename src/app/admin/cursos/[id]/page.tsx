@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft, VideoIcon } from "lucide-react";
 import { getAdminCourse, getAdminCategories, getAdminInstructors } from "@/lib/admin-queries";
-import { updateCourse, deleteCourse, createLesson, updateLesson, deleteLesson } from "@/app/admin/actions";
+import { updateCourse, deleteCourse, createLesson, updateLesson, deleteLesson, reorderLessons } from "@/app/admin/actions";
 import { CourseForm } from "../course-form";
 import { LessonsManager } from "./lessons-manager";
 import { DeleteCourseConfirm } from "./delete-course-confirm";
@@ -110,6 +110,7 @@ export default async function EditCursoPage({ params, searchParams }: Props) {
             onCreateLesson={handleCreateLesson}
             onUpdateLesson={updateLesson}
             onDeleteLesson={deleteLesson}
+            onReorderLessons={reorderLessons}
           />
         </div>
       </div>
