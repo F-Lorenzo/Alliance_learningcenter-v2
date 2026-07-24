@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import type { Course, Category, Instructor, Lesson } from "@/types";
+import { isSubscriptionActive } from "@/lib/subscription-logic";
 
 function transformCourse(row: Record<string, unknown>): Course {
   const ccRows = row.course_categories as Array<{ category: { name: string } | null }> | null;
@@ -176,6 +177,13 @@ export async function getCurrentUser() {
     cuit: (profile?.cuit as string | null) ?? null,
     condicion_iva: (profile?.condicion_iva as string | null) ?? null,
   };
+}
+
+export async function userHasActiveAccess(userId: string): Promise<boolean> {
+  const sub = await getSubscription(userId);
+  if (!sub) return false;
+  const periodEnd = sub.current_period_end ? new Date(sub.current_period_end) : null;
+  return isSubscriptionActive(sub.status, periodEnd);
 }
 
 export async function getSubscription(userId: string) {
