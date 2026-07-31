@@ -14,6 +14,27 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ ok: true }); // ignorar silenciosamente
     }
 
+    // Verificar que el usuario tiene acceso a la lección (gratis o con suscripción activa)
+    // antes de aceptar el valor de duración que reporta.
+    const { data: lesson } = await supabase
+      .from("lessons")
+      .select("id, is_free")
+      .eq("id", lesson_id)
+      .maybeSingle();
+
+    if (!lesson) return NextResponse.json({ ok: true });
+
+    if (!lesson.is_free) {
+      const { data: subscription } = await supabase
+        .from("subscriptions")
+        .select("status")
+        .eq("user_id", user.id)
+        .in("status", ["active", "trialing"])
+        .maybeSingle();
+
+      if (!subscription) return NextResponse.json({ ok: true });
+    }
+
     // Usar admin client para poder escribir en lessons sin RLS
     const adminDb = createAdminClient();
     await adminDb
