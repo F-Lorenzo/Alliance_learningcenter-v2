@@ -14,8 +14,8 @@ import {
  * Formato de x-signature: "ts=<timestamp>,v1=<hash>"
  * Manifest: "id:<data.id>;request-id:<x-request-id>;ts:<ts>;"
  *
- * Si MP_WEBHOOK_SECRET no está configurado deja pasar con advertencia
- * (útil en staging o mientras el secret no fue configurado).
+ * Si MP_WEBHOOK_SECRET no está configurado, el webhook se rechaza
+ * (fail-closed): nunca se procesan payloads sin verificar la firma.
  */
 function verifySignature(
   xSignature: string,
@@ -24,10 +24,10 @@ function verifySignature(
 ): boolean {
   const secret = process.env.MP_WEBHOOK_SECRET;
   if (!secret) {
-    console.warn(
-      "[webhooks/mp] MP_WEBHOOK_SECRET no configurado — verificación de firma OMITIDA."
+    console.error(
+      "[webhooks/mp] MP_WEBHOOK_SECRET no configurado — rechazando webhook."
     );
-    return true;
+    return false;
   }
   if (!xSignature || !xRequestId) {
     console.error("[webhooks/mp] Faltan headers x-signature o x-request-id");
@@ -147,14 +147,27 @@ export async function POST(request: Request) {
         (sub.auto_recurring?.frequency_type as "months" | "years") ?? "months";
       const plan = planFromFrequency(frequency);
 
-      // Obtener current_period_end actual para no acortarlo
-      const { data: existingSub } = await db
-        .from("subscriptions")
-        .select("id, current_period_end, mp_subscription_id")
-        .or(`mp_subscription_id.eq.${dataId},user_id.eq.${userId}`)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      // Obtener current_period_end actual para no acortarlo.
+      // Prioridad: match exacto por mp_subscription_id, luego fallback por user_id.
+      let existingSub: { id: string; current_period_end: string | null; mp_subscription_id: string | null } | null = null;
+      {
+        const { data } = await db
+          .from("subscriptions")
+          .select("id, current_period_end, mp_subscription_id")
+          .eq("mp_subscription_id", dataId)
+          .maybeSingle();
+        existingSub = data;
+      }
+      if (!existingSub) {
+        const { data } = await db
+          .from("subscriptions")
+          .select("id, current_period_end, mp_subscription_id")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        existingSub = data;
+      }
 
       const currentEnd = existingSub?.current_period_end
         ? new Date(existingSub.current_period_end)
