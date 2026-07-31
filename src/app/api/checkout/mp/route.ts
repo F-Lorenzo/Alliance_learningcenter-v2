@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { MercadoPagoConfig, PreApproval } from "mercadopago";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isRateLimited } from "@/lib/rate-limit";
+
+const RATE_LIMIT = 5;         // creaciones de pago máximas por ventana
+const RATE_WINDOW_SEC = 60;   // ventana de 60 segundos
 
 const PLANS = {
   monthly: {
@@ -69,6 +73,13 @@ export async function POST(request: Request) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+
+    if (await isRateLimited(user.id, RATE_LIMIT, RATE_WINDOW_SEC)) {
+      return NextResponse.json(
+        { error: "Demasiadas solicitudes. Esperá un momento." },
+        { status: 429 }
+      );
+    }
 
     if (!user.email_confirmed_at) {
       return NextResponse.json(

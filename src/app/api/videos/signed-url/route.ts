@@ -1,43 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { getSignedVideoUrl } from "@/lib/r2";
+import { isRateLimited } from "@/lib/rate-limit";
 
 const RATE_LIMIT = 30;         // requests máximos por ventana
 const RATE_WINDOW_SEC = 60;    // ventana de 60 segundos
-
-// Rate limiter usando Supabase como store compartido entre instancias serverless.
-// La tabla rate_limits debe existir (ver create-rate-limits-table.sql).
-async function isRateLimited(userId: string): Promise<boolean> {
-  try {
-    const db = createAdminClient();
-    const now = new Date();
-    const windowStart = new Date(now.getTime() - RATE_WINDOW_SEC * 1000).toISOString();
-
-    // Contar requests en la ventana actual
-    const { count } = await db
-      .from("rate_limits")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", userId)
-      .gte("created_at", windowStart);
-
-    if ((count ?? 0) >= RATE_LIMIT) return true;
-
-    // Registrar este request
-    await db.from("rate_limits").insert({ user_id: userId });
-
-    // Limpiar registros viejos (1 de cada 4 requests — suficiente para mantener la tabla chica)
-    if (Math.random() < 0.25) {
-      const cutoff = new Date(now.getTime() - RATE_WINDOW_SEC * 2 * 1000).toISOString();
-      await db.from("rate_limits").delete().lt("created_at", cutoff);
-    }
-
-    return false;
-  } catch {
-    // Si falla el rate limiter, dejar pasar (no bloquear al usuario por error interno)
-    return false;
-  }
-}
 
 export async function GET(request: Request) {
   try {
@@ -49,7 +16,7 @@ export async function GET(request: Request) {
     }
 
     // 2. Rate limiting por usuario (Supabase como store compartido)
-    if (await isRateLimited(user.id)) {
+    if (await isRateLimited(user.id, RATE_LIMIT, RATE_WINDOW_SEC)) {
       console.warn(`[videos/signed-url] Rate limit alcanzado para usuario ${user.id}`);
       return NextResponse.json(
         { error: "Demasiadas solicitudes. Esperá un momento." },

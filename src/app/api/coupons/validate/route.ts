@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isRateLimited } from "@/lib/rate-limit";
 
 const PLAN_PRICES: Record<string, number> = {
   monthly: 20000,
   yearly: 199000,
 };
+
+const RATE_LIMIT = 20;        // intentos de validación máximos por ventana
+const RATE_WINDOW_SEC = 60;   // ventana de 60 segundos
 
 export async function GET(request: Request) {
   try {
@@ -13,6 +17,13 @@ export async function GET(request: Request) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+
+    if (await isRateLimited(user.id, RATE_LIMIT, RATE_WINDOW_SEC)) {
+      return NextResponse.json(
+        { error: "Demasiadas solicitudes. Esperá un momento." },
+        { status: 429 }
+      );
+    }
 
     const { searchParams } = new URL(request.url);
     const code = searchParams.get("code")?.trim().toUpperCase();
