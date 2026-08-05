@@ -10,9 +10,10 @@ const securityHeaders = [
     value: [
       "default-src 'self'",
       "img-src 'self' data: https://pub-3e59cb3f5ea84d3999348ba98e494f6f.r2.dev https://*.supabase.co",
+      "media-src 'self' https://*.r2.cloudflarestorage.com https://pub-3e59cb3f5ea84d3999348ba98e494f6f.r2.dev",
       "script-src 'self' 'unsafe-inline'",
       "style-src 'self' 'unsafe-inline'",
-      "connect-src 'self' https://*.supabase.co https://api.mercadopago.com",
+      "connect-src 'self' https://*.supabase.co https://api.mercadopago.com https://*.r2.cloudflarestorage.com",
       "frame-ancestors 'none'",
     ].join("; "),
   },
