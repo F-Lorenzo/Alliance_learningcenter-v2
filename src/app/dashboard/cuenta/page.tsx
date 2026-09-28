@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser, getSubscription } from "@/lib/queries";
 import { logout } from "@/app/actions";
+import { cancelSubscription } from "./actions";
 import { CuentaClient } from "./cuenta-client";
 import type { Metadata } from "next";
 
@@ -23,6 +24,7 @@ export default async function CuentaPage() {
       }}
       subscription={subscription}
       onLogout={logout}
+      onCancelSubscription={cancelSubscription}
     />
   );
 }

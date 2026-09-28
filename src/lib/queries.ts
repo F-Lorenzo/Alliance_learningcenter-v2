@@ -186,16 +186,49 @@ export async function userHasActiveAccess(userId: string): Promise<boolean> {
   return isSubscriptionActive(sub.status, periodEnd);
 }
 
-export async function getSubscription(userId: string) {
+export interface SubscriptionRow {
+  id: string;
+  status: string;
+  plan: string;
+  current_period_end: string | null;
+  mp_subscription_id: string | null;
+}
+
+/**
+ * Devuelve la suscripción "vigente" del usuario.
+ *
+ * Un usuario puede legítimamente tener MÁS DE UNA fila en `subscriptions` (una por cada
+ * preapproval de Mercado Pago que haya tenido: la vieja cancelada y la nueva tras
+ * re-suscribirse — ver el fix de "eventos de una preapproval vieja pisan la fila vigente" en
+ * el webhook). Por eso ya NO alcanza con tomar la fila más reciente por `created_at`: hay que
+ * elegir la que hoy da acceso (según la misma regla que `isSubscriptionActive`), priorizando
+ * el vencimiento más lejano si hay varias. Si ninguna da acceso, se devuelve la más reciente
+ * (para mostrar su estado, ej. "Cancelada").
+ */
+export async function getSubscription(userId: string): Promise<SubscriptionRow | null> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("subscriptions")
-    .select("status, plan, current_period_end")
+    .select("id, status, plan, current_period_end, mp_subscription_id")
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  return data as { status: string; plan: string; current_period_end: string | null } | null;
+    .limit(10);
+
+  const rows = (data ?? []) as SubscriptionRow[];
+  if (rows.length === 0) return null;
+  if (rows.length === 1) return rows[0];
+
+  const active = rows.filter((r) =>
+    isSubscriptionActive(r.status, r.current_period_end ? new Date(r.current_period_end) : null)
+  );
+  if (active.length === 0) return rows[0];
+
+  active.sort((a, b) => {
+    const endA = a.current_period_end ? new Date(a.current_period_end).getTime() : Infinity;
+    const endB = b.current_period_end ? new Date(b.current_period_end).getTime() : Infinity;
+    return endB - endA;
+  });
+  return active[0];
 }
 
 export async function getLessonProgress(userId: string, lessonId: string) {

@@ -3,18 +3,37 @@
 import { useTransition, useRef, useEffect, useState } from "react";
 import { ChevronDown } from "lucide-react";
 
+interface ToggleResult {
+  ok: boolean;
+  warning?: string;
+}
+
 interface Props {
   userId: string;
   userName: string;
   currentStatus: string | null;
-  onToggle: (userId: string, currentStatus: string | null, plan: "monthly" | "yearly") => Promise<void>;
+  onToggle: (
+    userId: string,
+    currentStatus: string | null,
+    plan: "monthly" | "yearly"
+  ) => Promise<ToggleResult | void>;
 }
 
 export function ToggleSubscriptionButton({ userId, userName, currentStatus, onToggle }: Props) {
   const [pending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
+  const [warning, setWarning] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const isActive = currentStatus === "active" || currentStatus === "trialing";
+
+  function runToggle(plan: "monthly" | "yearly") {
+    setWarning(null);
+    startTransition(async () => {
+      const result = await onToggle(userId, currentStatus, plan);
+      if (result && !result.ok) setWarning(result.warning ?? "No se pudo completar la acción.");
+      else if (result?.warning) setWarning(result.warning);
+    });
+  }
 
   // Cerrar al hacer click fuera
   useEffect(() => {
@@ -30,12 +49,12 @@ export function ToggleSubscriptionButton({ userId, userName, currentStatus, onTo
     setOpen(false);
     const label = plan === "monthly" ? "1 mes" : "1 año";
     if (!confirm(`¿Activar suscripción de ${label} para ${userName}?`)) return;
-    startTransition(() => onToggle(userId, currentStatus, plan));
+    runToggle(plan);
   }
 
   function handleDeactivate() {
-    if (!confirm(`¿Desactivar la suscripción de ${userName}? Perderá acceso al contenido de pago.`)) return;
-    startTransition(() => onToggle(userId, currentStatus, "yearly"));
+    if (!confirm(`¿Desactivar la suscripción de ${userName}? Perderá acceso al contenido de pago y se cancelará en Mercado Pago.`)) return;
+    runToggle("yearly");
   }
 
   if (pending) {
@@ -44,13 +63,16 @@ export function ToggleSubscriptionButton({ userId, userName, currentStatus, onTo
 
   if (isActive) {
     return (
-      <button
-        type="button"
-        onClick={handleDeactivate}
-        className="text-xs text-danger hover:text-danger/80 transition-colors"
-      >
-        Desactivar
-      </button>
+      <div className="flex flex-col items-end gap-1">
+        <button
+          type="button"
+          onClick={handleDeactivate}
+          className="text-xs text-danger hover:text-danger/80 transition-colors"
+        >
+          Desactivar
+        </button>
+        {warning && <span className="text-[10px] text-warning max-w-[200px] text-right">{warning}</span>}
+      </div>
     );
   }
 
@@ -86,6 +108,7 @@ export function ToggleSubscriptionButton({ userId, userName, currentStatus, onTo
           </button>
         </div>
       )}
+      {warning && <span className="block text-[10px] text-warning max-w-[200px] text-right mt-1">{warning}</span>}
     </div>
   );
 }

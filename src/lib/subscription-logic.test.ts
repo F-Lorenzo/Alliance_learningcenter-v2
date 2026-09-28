@@ -3,6 +3,7 @@ import {
   parseSafeDate,
   mapMpStatus,
   planFromFrequency,
+  frequencyFromPlan,
   calculateNewPeriodEnd,
   isSubscriptionActive,
   GRACE_PERIOD_DAYS,
@@ -32,7 +33,10 @@ describe("mapMpStatus", () => {
   it("maps authorized → active", () => expect(mapMpStatus("authorized")).toBe("active"));
   it("maps paused → past_due", () => expect(mapMpStatus("paused")).toBe("past_due"));
   it("maps cancelled → canceled", () => expect(mapMpStatus("cancelled")).toBe("canceled"));
-  it("maps pending → trialing", () => expect(mapMpStatus("pending")).toBe("trialing"));
+  // "pending" (preapproval creada, sin autorizar todavia) NO debe dar acceso: mapea a un status
+  // propio, no a "trialing" (eso regalaba acceso con solo abrir el checkout sin pagar).
+  it("maps pending → pending (no otorga acceso, ver isSubscriptionActive)", () =>
+    expect(mapMpStatus("pending")).toBe("pending"));
   it("maps unknown → inactive", () => expect(mapMpStatus("unknown")).toBe("inactive"));
   it("handles undefined → inactive", () => expect(mapMpStatus(undefined)).toBe("inactive"));
 });
@@ -41,6 +45,15 @@ describe("planFromFrequency", () => {
   it("returns monthly for 1", () => expect(planFromFrequency(1)).toBe("monthly"));
   it("returns yearly for 12", () => expect(planFromFrequency(12)).toBe("yearly"));
   it("returns yearly for 24", () => expect(planFromFrequency(24)).toBe("yearly"));
+});
+
+describe("frequencyFromPlan", () => {
+  it("returns 1 month for monthly", () => expect(frequencyFromPlan("monthly")).toEqual({ frequency: 1, frequencyType: "months" }));
+  it("returns 12 months for yearly", () => expect(frequencyFromPlan("yearly")).toEqual({ frequency: 12, frequencyType: "months" }));
+  it("defaults to monthly for null/unknown", () => {
+    expect(frequencyFromPlan(null)).toEqual({ frequency: 1, frequencyType: "months" });
+    expect(frequencyFromPlan("weird")).toEqual({ frequency: 1, frequencyType: "months" });
+  });
 });
 
 describe("calculateNewPeriodEnd", () => {
@@ -67,6 +80,23 @@ describe("calculateNewPeriodEnd", () => {
     const result = calculateNewPeriodEnd(paymentDate, null, 1, "years");
     expect(result.getUTCFullYear()).toBe(2026);
     expect(result.getUTCMonth()).toBe(5); // June
+  });
+
+  // WHP-18: Date.setUTCMonth desborda cuando el dia de origen no existe en el mes destino
+  // (31 ene + 1 mes -> "3 mar" en vez de fin de febrero). calculateNewPeriodEnd debe clampear.
+  it("clamps end-of-month overflow (Jan 31 + 1 month → Feb 28, not Mar 3)", () => {
+    const result = calculateNewPeriodEnd(new Date("2025-01-31T00:00:00Z"), null, 1, "months");
+    expect(result.toISOString()).toBe(new Date("2025-02-28T00:00:00Z").toISOString());
+  });
+
+  it("clamps leap-year Feb 29 + 1 year → Feb 28 of a non-leap year", () => {
+    const result = calculateNewPeriodEnd(new Date("2024-02-29T00:00:00Z"), null, 1, "years");
+    expect(result.toISOString()).toBe(new Date("2025-02-28T00:00:00Z").toISOString());
+  });
+
+  it("does not clamp when the target month has enough days", () => {
+    const result = calculateNewPeriodEnd(new Date("2025-01-15T00:00:00Z"), null, 1, "months");
+    expect(result.toISOString()).toBe(new Date("2025-02-15T00:00:00Z").toISOString());
   });
 });
 
@@ -105,11 +135,37 @@ describe("isSubscriptionActive", () => {
     expect(isSubscriptionActive("past_due", null, now)).toBe(false);
   });
 
-  it("canceled → no access", () => {
-    expect(isSubscriptionActive("canceled", new Date("2025-07-01T00:00:00Z"), now)).toBe(false);
+  // Cancelar (por el usuario, por MP o por el admin) NO corta el acceso ya pagado: se mantiene
+  // hasta current_period_end, sin gracia extra (a diferencia de active/past_due).
+  it("canceled with future period_end → access until period_end", () => {
+    expect(isSubscriptionActive("canceled", new Date("2025-07-01T00:00:00Z"), now)).toBe(true);
+  });
+
+  it("canceled with period_end already past → no access", () => {
+    expect(isSubscriptionActive("canceled", new Date("2025-06-01T00:00:00Z"), now)).toBe(false);
+  });
+
+  it("canceled exactly at period_end → still has access (inclusive)", () => {
+    expect(isSubscriptionActive("canceled", now, now)).toBe(true);
+  });
+
+  it("canceled one ms after period_end → no access, and no grace period applies", () => {
+    const justAfter = new Date(now.getTime() + 1);
+    const periodEnd = now;
+    expect(isSubscriptionActive("canceled", periodEnd, justAfter)).toBe(false);
+  });
+
+  it("canceled with null period_end → no access (nunca hubo periodo pagado)", () => {
+    expect(isSubscriptionActive("canceled", null, now)).toBe(false);
   });
 
   it("inactive → no access", () => {
     expect(isSubscriptionActive("inactive", null, now)).toBe(false);
+  });
+
+  // "pending" (preapproval creada, sin autorizar/cobrar): jamas otorga acceso, con o sin fecha.
+  it("pending → no access, even with a future period_end", () => {
+    expect(isSubscriptionActive("pending", new Date("2025-07-01T00:00:00Z"), now)).toBe(false);
+    expect(isSubscriptionActive("pending", null, now)).toBe(false);
   });
 });

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getSignedVideoUrl } from "@/lib/r2";
 import { isRateLimited } from "@/lib/rate-limit";
+import { userHasActiveAccess } from "@/lib/queries";
 
 const RATE_LIMIT = 30;         // requests máximos por ventana
 const RATE_WINDOW_SEC = 60;    // ventana de 60 segundos
@@ -15,8 +16,9 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    // 2. Rate limiting por usuario (Supabase como store compartido)
-    if (await isRateLimited(user.id, RATE_LIMIT, RATE_WINDOW_SEC)) {
+    // 2. Rate limiting por usuario (Supabase como store compartido). Clave con scope por
+    //    endpoint: antes compartía el cupo con /api/checkout/mp y /api/coupons/validate.
+    if (await isRateLimited(`signed-url:${user.id}`, RATE_LIMIT, RATE_WINDOW_SEC)) {
       console.warn(`[videos/signed-url] Rate limit alcanzado para usuario ${user.id}`);
       return NextResponse.json(
         { error: "Demasiadas solicitudes. Esperá un momento." },
@@ -47,16 +49,13 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Esta lección no tiene video disponible" }, { status: 404 });
     }
 
-    // 5. Si la lección es paga, verificar suscripción activa
+    // 5. Si la lección es paga, verificar suscripción activa (misma regla que el resto de la
+    //    app — antes esto solo chequeaba status IN (active, trialing) sin mirar la fecha de
+    //    vencimiento ni contemplar la gracia de 3 días, lo que dejaba con acceso a una
+    //    suscripción activa pero vencida hace tiempo, o sin acceso a una en gracia).
     if (!lesson.is_free) {
-      const { data: subscription } = await supabase
-        .from("subscriptions")
-        .select("status")
-        .eq("user_id", user.id)
-        .in("status", ["active", "trialing"])
-        .maybeSingle();
-
-      if (!subscription) {
+      const hasAccess = await userHasActiveAccess(user.id);
+      if (!hasAccess) {
         return NextResponse.json({ error: "Suscripción requerida" }, { status: 403 });
       }
     }

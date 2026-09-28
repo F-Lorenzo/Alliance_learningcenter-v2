@@ -18,7 +18,10 @@ export async function GET(request: Request) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-    if (await isRateLimited(user.id, RATE_LIMIT, RATE_WINDOW_SEC)) {
+    // Clave con scope por endpoint: antes usaba solo `user.id`, y compartía el cupo con
+    // /api/checkout/mp y /api/videos/signed-url (probar cupones podía agotar el límite de
+    // intentos de pago del usuario).
+    if (await isRateLimited(`coupons:${user.id}`, RATE_LIMIT, RATE_WINDOW_SEC)) {
       return NextResponse.json(
         { error: "Demasiadas solicitudes. Esperá un momento." },
         { status: 429 }

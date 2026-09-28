@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { MercadoPagoConfig, PreApproval } from "mercadopago";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -272,30 +273,74 @@ export async function deleteInstructor(id: string) {
 
 // ── SUSCRIPCIONES ──────────────────────────────────────────────
 
+export interface ToggleSubscriptionResult {
+  ok: boolean;
+  /** Advertencia no fatal (ej. no se pudo cancelar en Mercado Pago, pero sí en la base). */
+  warning?: string;
+}
+
 /**
  * Activa o desactiva manualmente la suscripción de un usuario desde el panel admin.
- * - Si está activa/trialing → la cancela (status = "canceled").
- * - Si no tiene o está cancelada → crea/reactiva con status = "active".
+ * - Si está activa/trialing → la cancela (status = "canceled") Y cancela la preapproval REAL en
+ *   Mercado Pago si la fila tiene una vinculada — antes solo se marcaba en la base y Mercado
+ *   Pago seguía cobrando; el próximo pago aprobado reactivaba solo a un usuario que el admin
+ *   ya había dado de baja.
+ * - Si no tiene o está cancelada → crea/reactiva con status = "active" (alta manual, sin MP).
  *   `plan` determina la duración: "monthly" = 1 mes, "yearly" = 1 año.
  */
 export async function toggleSubscription(
   userId: string,
   currentStatus: string | null,
   plan: "monthly" | "yearly" = "yearly"
-) {
+): Promise<ToggleSubscriptionResult> {
   await requireAdminRole();
   const db = createAdminClient();
   const isActive = currentStatus === "active" || currentStatus === "trialing";
 
   if (isActive) {
+    // Buscar la(s) fila(s) activas para cancelar tambien su preapproval real en MP.
+    const { data: rows } = await db
+      .from("subscriptions")
+      .select("id, mp_subscription_id")
+      .eq("user_id", userId)
+      .in("status", ["active", "trialing"]);
+
+    let mpWarning: string | undefined;
+    const mpIds = (rows ?? [])
+      .map((r) => r.mp_subscription_id as string | null)
+      .filter((id): id is string => Boolean(id));
+
+    if (mpIds.length > 0) {
+      if (!process.env.MP_ACCESS_TOKEN) {
+        mpWarning = "MP_ACCESS_TOKEN no configurado: la baja quedó solo en la base, Mercado Pago puede seguir cobrando.";
+        console.error("[toggleSubscription]", mpWarning);
+      } else {
+        const client = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN });
+        const preApproval = new PreApproval(client);
+        for (const mpId of mpIds) {
+          try {
+            await preApproval.update({ id: mpId, body: { status: "cancelled" } });
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : JSON.stringify(err);
+            console.error("[toggleSubscription] Error cancelando preapproval en MP:", mpId, msg);
+            mpWarning = "No se pudo cancelar la suscripción en Mercado Pago; puede seguir cobrando. Revisalo manualmente en el panel de MP.";
+          }
+        }
+      }
+    }
+
     // Desactivar: marcar como cancelada
-    await db
+    const { error } = await db
       .from("subscriptions")
       .update({ status: "canceled" })
       .eq("user_id", userId)
       .in("status", ["active", "trialing"]);
+
+    revalidatePath("/admin/usuarios");
+    if (error) return { ok: false, warning: error.message };
+    return { ok: true, warning: mpWarning };
   } else {
-    // Activar: calcular fecha de fin según plan elegido
+    // Activar (alta manual, sin MP): calcular fecha de fin según plan elegido.
     const periodEnd = new Date();
     if (plan === "monthly") {
       periodEnd.setMonth(periodEnd.getMonth() + 1);
@@ -303,34 +348,36 @@ export async function toggleSubscription(
       periodEnd.setFullYear(periodEnd.getFullYear() + 1);
     }
 
+    // Reutilizar una fila "sin identidad" (sin preapproval de MP vinculada) si existe; nunca
+    // una que ya pertenece a una preapproval real de MP — para que un alta manual no quede
+    // mezclada con el historial de una suscripción de Mercado Pago y un evento tardío de esa
+    // preapproval no le pise el estado a esta activación manual.
     const { data: existing } = await db
       .from("subscriptions")
       .select("id")
       .eq("user_id", userId)
+      .is("mp_subscription_id", null)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 
-    if (existing) {
-      await db
-        .from("subscriptions")
-        .update({
+    const write = existing
+      ? db
+          .from("subscriptions")
+          .update({ status: "active", plan, current_period_end: periodEnd.toISOString() })
+          .eq("id", existing.id)
+      : db.from("subscriptions").insert({
+          user_id: userId,
           status: "active",
           plan,
           current_period_end: periodEnd.toISOString(),
-        })
-        .eq("id", existing.id);
-    } else {
-      await db.from("subscriptions").insert({
-        user_id: userId,
-        status: "active",
-        plan,
-        current_period_end: periodEnd.toISOString(),
-      });
-    }
-  }
+        });
 
-  revalidatePath("/admin/usuarios");
+    const { error } = await write;
+    revalidatePath("/admin/usuarios");
+    if (error) return { ok: false, warning: error.message };
+    return { ok: true };
+  }
 }
 
 // ── ROLES ──────────────────────────────────────────────────────

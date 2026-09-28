@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { userHasActiveAccess } from "@/lib/queries";
 
 // GET /api/progress?lesson_id=xxx — leer progreso de una lección
 export async function GET(request: Request) {
@@ -53,16 +54,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Lección no encontrada" }, { status: 404 });
     }
 
-    // ── Si la lección es paga, verificar suscripción activa ───────────────
+    // ── Si la lección es paga, verificar suscripción activa (misma regla que el resto de la
+    //    app: status + vencimiento + gracia de 3 días) ─────────────────────
     if (!lesson.is_free) {
-      const { data: subscription } = await supabase
-        .from("subscriptions")
-        .select("status")
-        .eq("user_id", user.id)
-        .in("status", ["active", "trialing"])
-        .maybeSingle();
-
-      if (!subscription) {
+      const hasAccess = await userHasActiveAccess(user.id);
+      if (!hasAccess) {
         return NextResponse.json({ error: "Suscripción requerida" }, { status: 403 });
       }
     }

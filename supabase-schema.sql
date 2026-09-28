@@ -42,16 +42,63 @@ create trigger on_auth_user_created
 create table public.subscriptions (
   id uuid default gen_random_uuid() primary key,
   user_id uuid references auth.users on delete cascade not null,
-  status text not null default 'inactive', -- active | past_due | trialing | canceled | inactive
+  status text not null default 'inactive', -- active | past_due | trialing | canceled | pending | inactive
   plan text not null default 'monthly',    -- monthly | yearly
   mp_subscription_id text,
   current_period_start timestamptz,
   current_period_end timestamptz,
+  -- last_modified de MP del ultimo evento de preapproval aplicado a esta fila: evita que un
+  -- evento desordenado/reintentado tardiamente retroceda el estado (ver webhooks/mp/route.ts).
+  mp_status_as_of timestamptz,
+  -- id del ultimo pago de MP ya aplicado: evita extender el periodo dos veces si MP notifica
+  -- el mismo pago mas de una vez.
+  last_payment_id text,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
 alter table public.subscriptions enable row level security;
 create policy "Users see own subscription" on public.subscriptions for select using (auth.uid() = user_id);
+
+-- Evita que una carrera entre dos webhooks concurrentes cree dos filas para la misma
+-- preapproval de MP. Permite multiples NULL (filas activadas manualmente por el admin que
+-- todavia no tienen una preapproval vinculada).
+create unique index subscriptions_mp_subscription_id_key
+  on public.subscriptions (mp_subscription_id)
+  where mp_subscription_id is not null;
+
+create index subscriptions_user_id_created_at_idx
+  on public.subscriptions (user_id, created_at desc);
+
+-- Unica fuente de verdad, a nivel SQL/RLS, de "tiene acceso ahora". Debe reflejar EXACTAMENTE
+-- isSubscriptionActive() de src/lib/subscription-logic.ts (incluida la gracia de 3 dias y que
+-- cancelar mantiene el acceso hasta current_period_end).
+create or replace function public.user_has_active_access(check_user_id uuid, at_time timestamptz default now())
+returns boolean
+language sql
+stable
+as $$
+  select exists (
+    select 1
+    from public.subscriptions s
+    where s.user_id = check_user_id
+      and (
+        (
+          s.status in ('active', 'trialing')
+          and (s.current_period_end is null or s.current_period_end + interval '3 days' > at_time)
+        )
+        or (
+          s.status = 'past_due'
+          and s.current_period_end is not null
+          and s.current_period_end + interval '3 days' > at_time
+        )
+        or (
+          s.status = 'canceled'
+          and s.current_period_end is not null
+          and s.current_period_end > at_time
+        )
+      )
+  );
+$$;
 
 -- ─── CATEGORIES ──────────────────────────────────────────────
 create table public.categories (
@@ -142,13 +189,7 @@ alter table public.lessons enable row level security;
 -- Lecciones gratis: públicas. Lecciones pagas: solo suscriptores activos
 create policy "Free lessons are public" on public.lessons for select using (is_free = true);
 create policy "Paid lessons for subscribers" on public.lessons for select using (
-  is_free = false and
-  exists (
-    select 1 from public.subscriptions
-    where user_id = auth.uid()
-    and status in ('active', 'trialing')
-    and current_period_end > now()
-  )
+  is_free = false and public.user_has_active_access(auth.uid())
 );
 
 -- ─── PROGRESS ────────────────────────────────────────────────

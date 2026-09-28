@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { userHasActiveAccess } from "@/lib/queries";
 
 // GET /api/notes?lesson_id=xxx — notas del usuario para una lección
 export async function GET(request: Request) {
@@ -45,7 +46,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "lesson_id y text son requeridos" }, { status: 400 });
     }
 
-    // Verificar que el usuario puede acceder a la lección (es free o tiene suscripción)
+    // Verificar que el usuario puede acceder a la lección (es free o tiene suscripción activa,
+    // misma regla que el resto de la app: status + vencimiento + gracia de 3 días).
     const { data: lesson } = await supabase
       .from("lessons")
       .select("is_free")
@@ -55,20 +57,8 @@ export async function POST(request: Request) {
     if (!lesson) return NextResponse.json({ error: "Lección no encontrada" }, { status: 404 });
 
     if (!lesson.is_free) {
-      const { data: sub } = await supabase
-        .from("subscriptions")
-        .select("status, current_period_end")
-        .eq("user_id", user.id)
-        .in("status", ["active", "trialing"])
-        .maybeSingle();
-
-      if (!sub) return NextResponse.json({ error: "Suscripción requerida" }, { status: 403 });
-
-      // Si tiene fecha de vencimiento y ya expiró, rechazar
-      // NULL = suscripción manual sin fecha límite (admin grants) → permitir
-      if (sub.current_period_end && new Date(sub.current_period_end) < new Date()) {
-        return NextResponse.json({ error: "Suscripción vencida" }, { status: 403 });
-      }
+      const hasAccess = await userHasActiveAccess(user.id);
+      if (!hasAccess) return NextResponse.json({ error: "Suscripción requerida" }, { status: 403 });
     }
 
     const { data, error } = await supabase

@@ -3,6 +3,7 @@ import { MercadoPagoConfig, PreApproval } from "mercadopago";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isRateLimited } from "@/lib/rate-limit";
+import { isSubscriptionActive } from "@/lib/subscription-logic";
 
 const RATE_LIMIT = 5;         // creaciones de pago máximas por ventana
 const RATE_WINDOW_SEC = 60;   // ventana de 60 segundos
@@ -74,7 +75,9 @@ export async function POST(request: Request) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-    if (await isRateLimited(user.id, RATE_LIMIT, RATE_WINDOW_SEC)) {
+    // Clave con scope por endpoint: antes usaba solo `user.id`, y compartía el cupo con
+    // /api/coupons/validate y /api/videos/signed-url.
+    if (await isRateLimited(`checkout:${user.id}`, RATE_LIMIT, RATE_WINDOW_SEC)) {
       return NextResponse.json(
         { error: "Demasiadas solicitudes. Esperá un momento." },
         { status: 429 }
@@ -94,6 +97,35 @@ export async function POST(request: Request) {
     const couponCode: string | undefined = body.coupon_code?.trim?.() || undefined;
     const plan = PLANS[planKey];
     if (!plan) return NextResponse.json({ error: "Plan inválido" }, { status: 400 });
+
+    // 2.b No permitir crear una segunda preapproval del MISMO plan mientras ya hay una vigente
+    // (activa, en gracia, o cancelada pero con acceso pagado hasta current_period_end): evita
+    // un doble cobro accidental. Cambiar de plan (monthly -> yearly o viceversa) sigue permitido.
+    // Si esta verificación falla (DB caída), no bloqueamos el checkout por eso — mismo criterio
+    // que el resto de esta ruta (rate limit y cupón fallan "abierto", nunca "cerrado").
+    try {
+      const db = createAdminClient();
+      const { data: rows } = await db
+        .from("subscriptions")
+        .select("status, plan, current_period_end")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(10);
+
+      const alreadySubscribedToSamePlan = (rows ?? []).some(
+        (r) =>
+          r.plan === planKey &&
+          isSubscriptionActive(r.status as string, r.current_period_end ? new Date(r.current_period_end) : null)
+      );
+      if (alreadySubscribedToSamePlan) {
+        return NextResponse.json(
+          { error: "Ya tenés una suscripción activa. Revisá el estado en \"Mi cuenta\"." },
+          { status: 409 }
+        );
+      }
+    } catch (err) {
+      console.error("[checkout/mp] No se pudo verificar suscripciones existentes:", serializeError(err));
+    }
 
     // 3. Aplicar cupón (server-side — nunca confiar en el precio del cliente)
     let transactionAmount = plan.transaction_amount;

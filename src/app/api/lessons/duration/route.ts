@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { userHasActiveAccess } from "@/lib/queries";
 
 // PATCH /api/lessons/duration — auto-guarda duración real al cargar el video
 export async function PATCH(request: Request) {
@@ -25,14 +26,8 @@ export async function PATCH(request: Request) {
     if (!lesson) return NextResponse.json({ ok: true });
 
     if (!lesson.is_free) {
-      const { data: subscription } = await supabase
-        .from("subscriptions")
-        .select("status")
-        .eq("user_id", user.id)
-        .in("status", ["active", "trialing"])
-        .maybeSingle();
-
-      if (!subscription) return NextResponse.json({ ok: true });
+      const hasAccess = await userHasActiveAccess(user.id);
+      if (!hasAccess) return NextResponse.json({ ok: true });
     }
 
     // Usar admin client para poder escribir en lessons sin RLS

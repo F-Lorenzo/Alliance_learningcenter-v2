@@ -6,11 +6,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
+import { safeRedirectPath } from "@/lib/safe-redirect";
 
 export function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirect = searchParams.get("redirect") ?? "/dashboard";
+  // Antes se usaba el valor crudo del query param: un link a /login?redirect=https://evil.com
+  // (o //evil.com) hacía router.push a un sitio externo apenas el usuario iniciaba sesión.
+  const redirect = safeRedirectPath(searchParams.get("redirect"));
 
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");

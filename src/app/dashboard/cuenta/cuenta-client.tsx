@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { Button } from "@/components/ui/button";
@@ -19,11 +20,20 @@ interface SubData {
   current_period_end: string | null;
 }
 
+interface CancelResult {
+  ok: boolean;
+  error?: string;
+}
+
 interface Props {
   user: UserData;
   subscription: SubData | null;
   onLogout: () => Promise<void>;
+  onCancelSubscription: () => Promise<CancelResult>;
 }
+
+/** Estados desde los que se puede cancelar (dan acceso hoy, ver isSubscriptionActive). */
+const CANCELABLE_STATUSES = new Set(["active", "trialing", "past_due"]);
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -47,8 +57,24 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   inactive: { label: "Sin suscripción", color: "bg-bg-tertiary text-text-tertiary" },
 };
 
-export function CuentaClient({ user, subscription, onLogout }: Props) {
+export function CuentaClient({ user, subscription, onLogout, onCancelSubscription }: Props) {
+  const router = useRouter();
   const [cancelConfirm, setCancelConfirm] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+
+  async function handleConfirmCancel() {
+    setCancelling(true);
+    setCancelError(null);
+    const result = await onCancelSubscription();
+    setCancelling(false);
+    if (result.ok) {
+      setCancelConfirm(false);
+      router.refresh();
+    } else {
+      setCancelError(result.error ?? "No pudimos cancelar la suscripción. Intentá de nuevo.");
+    }
+  }
 
   const subStatus = subscription?.status ?? "inactive";
   const subLabel = STATUS_LABELS[subStatus] ?? STATUS_LABELS.inactive;
@@ -168,13 +194,13 @@ export function CuentaClient({ user, subscription, onLogout }: Props) {
                 Descargar última factura
               </Button>
 
-              {subscription && subscription.status === "active" && (
+              {subscription && CANCELABLE_STATUSES.has(subscription.status) && (
                 !cancelConfirm ? (
                   <Button
                     variant="ghost"
                     size="sm"
                     className="justify-start text-danger hover:text-danger mt-2"
-                    onClick={() => setCancelConfirm(true)}
+                    onClick={() => { setCancelError(null); setCancelConfirm(true); }}
                   >
                     Cancelar suscripción
                   </Button>
@@ -182,11 +208,23 @@ export function CuentaClient({ user, subscription, onLogout }: Props) {
                   <div className="mt-2 p-4 rounded-lg border border-danger/30 bg-danger/5">
                     <p className="text-sm text-text-primary mb-1 font-medium">¿Seguro que querés cancelar?</p>
                     <p className="text-xs text-text-secondary mb-4">
-                      Vas a mantener acceso hasta el {periodEnd}.
+                      {periodEnd
+                        ? `Vas a mantener acceso hasta el ${periodEnd}. No se te va a volver a cobrar.`
+                        : "No se te va a volver a cobrar."}
                     </p>
+                    {cancelError && (
+                      <p className="text-xs text-danger mb-3">{cancelError}</p>
+                    )}
                     <div className="flex gap-2">
-                      <Button variant="danger" size="sm">Sí, cancelar</Button>
-                      <Button variant="ghost" size="sm" onClick={() => setCancelConfirm(false)}>
+                      <Button variant="danger" size="sm" onClick={handleConfirmCancel} disabled={cancelling}>
+                        {cancelling ? "Cancelando…" : "Sí, cancelar"}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => { setCancelConfirm(false); setCancelError(null); }}
+                        disabled={cancelling}
+                      >
                         Quedarme suscripto
                       </Button>
                     </div>
