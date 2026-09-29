@@ -6,6 +6,7 @@ import { Footer } from "@/components/footer";
 import { Button } from "@/components/ui/button";
 import { formatMinutes, formatDuration, getPublicImageUrl } from "@/lib/utils";
 import { getCourseBySlug, getCurrentUser, getSubscription } from "@/lib/queries";
+import { isSubscriptionActive } from "@/lib/subscription-logic";
 import { logout } from "@/app/actions";
 import type { Metadata } from "next";
 
@@ -30,14 +31,14 @@ export default async function ModuloPage({ params }: Props) {
 
   if (!course) notFound();
 
+  // Misma regla que el resto de la app (isSubscriptionActive): antes este chequeo era propio y
+  // más estricto que el real (exigía current_period_end no-nulo sin gracia, ni contemplaba
+  // past_due/canceled-con-acceso-vigente), así que un usuario con acceso real podía ver esta
+  // página como si no tuviera suscripción.
   let isSubscribed = false;
   if (user) {
     const sub = await getSubscription(user.id);
-    isSubscribed =
-      !!sub &&
-      (sub.status === "active" || sub.status === "trialing") &&
-      !!sub.current_period_end &&
-      new Date(sub.current_period_end) > new Date();
+    isSubscribed = !!sub && isSubscriptionActive(sub.status, sub.current_period_end ? new Date(sub.current_period_end) : null);
   }
 
   const navUser = user ? { name: user.name, email: user.email } : null;

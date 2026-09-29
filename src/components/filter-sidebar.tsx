@@ -22,13 +22,11 @@ interface FilterSidebarProps {
 }
 
 function FilterOption({
-  value,
   label,
   count,
   isActive,
   onClick,
 }: {
-  value: string;
   label: string;
   count?: number;
   isActive: boolean;
@@ -80,7 +78,6 @@ export function FilterSidebar({ filters, onChange, onClear, categories = [] }: F
             </p>
             <div className="flex flex-col gap-1">
               <FilterOption
-                value=""
                 label="Todas"
                 isActive={filters.category === ""}
                 onClick={() => onChange({ ...filters, category: "" })}
@@ -88,7 +85,6 @@ export function FilterSidebar({ filters, onChange, onClear, categories = [] }: F
               {categories.map((cat) => (
                 <FilterOption
                   key={cat.value}
-                  value={cat.value}
                   label={cat.label}
                   count={cat.count}
                   isActive={filters.category === cat.value}

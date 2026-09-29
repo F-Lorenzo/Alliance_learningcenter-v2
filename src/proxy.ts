@@ -63,8 +63,6 @@ export async function proxy(request: NextRequest) {
 
     // Roles con acceso al panel
     const ADMIN_ROLES = ["super_admin", "admin", "admin_profesor", "profesor"];
-    // Roles con acceso a usuarios/cobros (no profesor)
-    const MANAGER_ROLES = ["super_admin", "admin", "admin_profesor"];
 
     let hasAccess = ADMIN_ROLES.includes(role);
 

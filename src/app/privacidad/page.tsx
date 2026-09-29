@@ -28,7 +28,7 @@ export default function PrivacidadPage() {
         <section>
           <h2 className="text-base font-semibold text-text-primary mb-3">1. Responsable del tratamiento</h2>
           <p>
-            Alliance Learning Center, con domicilio en la República Argentina, es responsable del tratamiento de los datos personales recolectados a través de la plataforma en línea disponible en este sitio web ("el Servicio"). Este documento describe qué datos recopilamos, cómo los utilizamos y cuáles son sus derechos como titular de los datos.
+            Alliance Learning Center, con domicilio en la República Argentina, es responsable del tratamiento de los datos personales recolectados a través de la plataforma en línea disponible en este sitio web (&quot;el Servicio&quot;). Este documento describe qué datos recopilamos, cómo los utilizamos y cuáles son sus derechos como titular de los datos.
           </p>
           <p className="mt-3">
             El tratamiento de datos personales se rige por la <strong className="text-text-primary">Ley N° 25.326 de Protección de Datos Personales</strong> de la República Argentina y sus normas complementarias.

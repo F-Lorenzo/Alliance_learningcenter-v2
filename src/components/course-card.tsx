@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Play } from "lucide-react";
-import { cn, formatMinutes, getPublicImageUrl } from "@/lib/utils";
+import { cn, getPublicImageUrl } from "@/lib/utils";
 import type { Course } from "@/types";
 
 interface CourseCardProps {

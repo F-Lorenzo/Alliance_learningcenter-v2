@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { ShieldCheck, LogOut } from "lucide-react";
 import { getCurrentUser } from "@/lib/queries";
 import { getAdminCurrentRole } from "@/lib/admin-queries";

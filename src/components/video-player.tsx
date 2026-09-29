@@ -103,8 +103,7 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
   const [noteText, setNoteText] = useState("");
   const [notes, setNotes] = useState<{ id: string; text: string; timestamp: number; createdAt: string }[]>([]);
   const [savingNote, setSavingNote] = useState(false);
-  const [completed, setCompleted] = useState(false);
-  const completedRef = useRef(false); // shadow ref para evitar stale closure en callbacks
+  const completedRef = useRef(false); // evita stale closure en callbacks (saveProgress, etc.)
   const [countdown, setCountdown] = useState<number | null>(null);
   const [watermarkPos, setWatermarkPos] = useState({ top: "10%", right: "2%" });
 
@@ -241,6 +240,11 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
   // ── Obtener URL firmada de R2 al montar / cambiar lección ─────
   useEffect(() => {
     retryCountRef.current = 0; // reset contador al cambiar lección
+    // El reset de videoError acá dispara un render extra (react-hooks/set-state-in-effect):
+    // se acepta a propósito en vez de forzar un remount con key={lesson.id} en el caller, que
+    // reiniciaría TODO el estado del reproductor (posición, volumen, velocidad, notas cargadas,
+    // etc.) en cada cambio de lección — mucho más costoso que un render de más.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setVideoError(false);
     fetchSignedUrl(false);
     return () => abortControllerRef.current?.abort();
@@ -316,13 +320,22 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
   }, [saveProgressBeacon]);
 
   // ── Desmontar por cambio de lección (navegación interna) ──────
+  // Este efecto se re-crea cada vez que cambia `saveProgress` (o sea, cada vez que cambia
+  // lesson.id). Para cuando el cleanup de la lección VIEJA corre, React ya montó el <video> de
+  // la lección NUEVA y `videoRef.current` ya apunta a ese elemento — leerlo directamente acá
+  // guardaba el currentTime (~0) del video nuevo bajo el lesson_id nuevo, en vez del progreso
+  // final real de la lección que se está abandonando. Se capturan ambos valores al momento en
+  // que ESTE efecto se instala (todavía con el <video> y el saveProgress de la lección vieja) y
+  // se usan esas copias en el cleanup, tal como recomienda la regla de exhaustive-deps.
   useEffect(() => {
+    const videoEl = videoRef.current;
+    const save = saveProgress;
     return () => {
       if (heartbeatRef.current) clearInterval(heartbeatRef.current);
       if (seekSaveTimeout.current) clearTimeout(seekSaveTimeout.current);
       // En navegación interna fetch sigue funcionando (página no cierra)
-      if (videoRef.current && videoRef.current.currentTime > 5) {
-        saveProgress(videoRef.current.currentTime);
+      if (videoEl && videoEl.currentTime > 5) {
+        save(videoEl.currentTime);
       }
     };
   }, [saveProgress]);
@@ -392,7 +405,6 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
     setCurrentTime(t);
     if (!completedRef.current && duration > 0 && t / duration >= 0.9) {
       completedRef.current = true;
-      setCompleted(true);
       saveProgress(t, true);
     }
   }
@@ -525,6 +537,31 @@ export function VideoPlayer({ lesson, lessons, slug, prevLesson, nextLesson, use
                     )}
                   </>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Error de reproducción: antes videoError se seteaba pero nunca se mostraba nada —
+              el usuario se quedaba mirando una pantalla negra sin explicación ni forma de
+              reintentar manualmente una vez agotados los reintentos automáticos. */}
+          {videoError && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black z-20">
+              <div className="text-center px-6">
+                <AlertCircle className="w-10 h-10 text-danger mx-auto mb-3" />
+                <p className="text-white/70 text-sm mb-4">
+                  No pudimos cargar el video. Puede ser un problema de conexión.
+                </p>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    retryCountRef.current = 0;
+                    setVideoError(false);
+                    fetchSignedUrl(true);
+                  }}
+                >
+                  Reintentar
+                </Button>
               </div>
             </div>
           )}

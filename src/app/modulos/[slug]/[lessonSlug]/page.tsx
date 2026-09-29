@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowLeft, BookOpen } from "lucide-react";
 import { VideoPlayer } from "@/components/video-player";
 import { getLessonWithCourse, getCurrentUser, getSubscription, getLessonProgress } from "@/lib/queries";
+import { isSubscriptionActive } from "@/lib/subscription-logic";
 import type { Metadata } from "next";
 
 interface Props {
@@ -26,11 +27,14 @@ export default async function PlayerPage({ params }: Props) {
   const data = await getLessonWithCourse(slug, lessonSlug);
   if (!data) notFound();
 
-  const { lesson, lessons, course } = data;
+  const { lesson, lessons } = data;
 
-  // Verificar acceso: lección paga requiere suscripción activa
+  // Verificar acceso: lección paga requiere suscripción activa. Misma regla que el resto de la
+  // app (isSubscriptionActive) — antes este chequeo ad-hoc solo miraba el status, ignorando
+  // vencimiento y gracia, y podía contradecir a la política RLS que ya decidió si `lesson`
+  // trae el video_url o no.
   const sub = await getSubscription(user.id);
-  const hasActivePlan = !!(sub && ["active", "trialing"].includes(sub.status));
+  const hasActivePlan = !!sub && isSubscriptionActive(sub.status, sub.current_period_end ? new Date(sub.current_period_end) : null);
 
   if (!lesson.is_free && !hasActivePlan) redirect("/planes");
 

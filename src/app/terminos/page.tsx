@@ -28,7 +28,7 @@ export default function TerminosPage() {
         <section>
           <h2 className="text-base font-semibold text-text-primary mb-3">1. Aceptación de los términos</h2>
           <p>
-            Al acceder y utilizar Alliance Learning Center ("el Servicio"), usted acepta quedar vinculado por estos Términos y Condiciones. Si no está de acuerdo con alguna parte de estos términos, no podrá acceder al Servicio. El Servicio es operado por Alliance Learning Center, con domicilio en la República Argentina.
+            Al acceder y utilizar Alliance Learning Center (&quot;el Servicio&quot;), usted acepta quedar vinculado por estos Términos y Condiciones. Si no está de acuerdo con alguna parte de estos términos, no podrá acceder al Servicio. El Servicio es operado por Alliance Learning Center, con domicilio en la República Argentina.
           </p>
         </section>
 

@@ -1,5 +1,5 @@
 import { getAdminUsers, getAdminCurrentRole } from "@/lib/admin-queries";
-import { toggleAdminRole, toggleSubscription, setUserRole } from "@/app/admin/actions";
+import { toggleSubscription, setUserRole } from "@/app/admin/actions";
 import { ToggleSubscriptionButton } from "./toggle-subscription-button";
 import { RoleSelector } from "./role-selector";
 import { cn } from "@/lib/utils";

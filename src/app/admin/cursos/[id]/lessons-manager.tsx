@@ -83,8 +83,7 @@ function LessonTextarea({ label, name, placeholder, defaultValue }: {
   );
 }
 
-function NewLessonForm({ courseId, onSubmit, onCancel }: {
-  courseId: string;
+function NewLessonForm({ onSubmit, onCancel }: {
   onSubmit: (formData: FormData) => Promise<void>;
   onCancel: () => void;
 }) {
@@ -170,10 +169,10 @@ function EditLessonForm({ lesson, courseId, onSubmit, onCancel }: {
 
 // ── Sortable row ──────────────────────────────────────────────────────────────
 function SortableLesson({
-  lesson, courseId, editingId, deletingId, delPending,
+  lesson, deletingId, delPending,
   onEdit, onDelete,
 }: {
-  lesson: Lesson; courseId: string; editingId: string | null;
+  lesson: Lesson;
   deletingId: string | null; delPending: boolean;
   onEdit: (id: string) => void; onDelete: (id: string) => void;
 }) {
@@ -349,8 +348,6 @@ export function LessonsManager({
                 <SortableLesson
                   key={lesson.id}
                   lesson={lesson}
-                  courseId={courseId}
-                  editingId={editingId}
                   deletingId={deletingId}
                   delPending={delPending}
                   onEdit={setEditingId}
@@ -363,7 +360,6 @@ export function LessonsManager({
 
         {showNew && (
           <NewLessonForm
-            courseId={courseId}
             onSubmit={onCreateLesson}
             onCancel={() => setShowNew(false)}
           />
