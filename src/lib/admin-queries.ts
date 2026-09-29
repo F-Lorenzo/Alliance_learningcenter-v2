@@ -320,3 +320,66 @@ export async function getAdminSubscriptions(page = 1) {
 
   return { subscriptions, total: count ?? 0, page, perPage };
 }
+
+// ── Salud del webhook ──────────────────────────────────────────
+
+export interface WebhookHealth {
+  /** false si NUNCA se registró un chequeo (recién desplegado, el cron todavía no corrió). */
+  hasData: boolean;
+  /** Resultado del último ping real de /api/cron/webhook-healthcheck (ver esa ruta). */
+  lastCheck: { ok: boolean; statusCode: number | null; error: string | null; checkedAt: string } | null;
+  /** Eventos reales de Mercado Pago que fallaron en las últimas 24 horas. */
+  recentFailedEvents: number;
+  /** true si hay algo que requiere atención (banner visible en el panel). */
+  hasProblem: boolean;
+}
+
+/**
+ * Estado de salud del webhook para el banner del panel admin. Combina dos señales:
+ *  1. El último ping sintético del cron (¿el camino público URL+firma sigue funcionando?).
+ *  2. Eventos REALES de clientes que fallaron en las últimas 24hs (webhook_events.status='failed').
+ * Cualquiera de las dos alcanza para mostrar la alerta — así una regresión como la del
+ * incidente de septiembre/2026 (URL del webhook rota) se nota en el panel en vez de quedar
+ * invisible hasta que un cliente reclama.
+ */
+export async function getWebhookHealth(): Promise<WebhookHealth> {
+  const empty: WebhookHealth = { hasData: false, lastCheck: null, recentFailedEvents: 0, hasProblem: false };
+
+  try {
+    const db = createAdminClient();
+
+    const [lastCheckResult, failedCountResult] = await Promise.all([
+      db
+        .from("webhook_health_checks")
+        .select("ok, status_code, error, checked_at")
+        .order("checked_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      db
+        .from("webhook_events")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "failed")
+        .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()),
+    ]);
+
+    // Si `webhook_health_checks` todavía no existe (falta correr
+    // create-webhook-health-checks-table.sql), no reventar todo el panel admin por esto — el
+    // banner simplemente se queda invisible hasta que la tabla exista.
+    const lastCheck = lastCheckResult.data
+      ? {
+          ok: lastCheckResult.data.ok as boolean,
+          statusCode: lastCheckResult.data.status_code as number | null,
+          error: lastCheckResult.data.error as string | null,
+          checkedAt: lastCheckResult.data.checked_at as string,
+        }
+      : null;
+
+    const recentFailedEvents = failedCountResult.count ?? 0;
+    const hasProblem = (lastCheck !== null && !lastCheck.ok) || recentFailedEvents > 0;
+
+    return { hasData: lastCheck !== null, lastCheck, recentFailedEvents, hasProblem };
+  } catch (err) {
+    console.error("[getWebhookHealth]", err);
+    return empty;
+  }
+}

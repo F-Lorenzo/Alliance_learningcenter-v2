@@ -59,3 +59,45 @@ describe("[H8 fix] checkout: no permite doblar una suscripción activa del mismo
     expect(res.status).toBe(200);
   });
 });
+
+describe("[cambio de plan] cancela la preapproval vieja en MP antes de crear la nueva", () => {
+  it("con una preapproval real vigente, cambiar de plan la cancela en MP y crea la nueva", async () => {
+    t.loginAs({ id: TEST_USER_ID });
+    const oldPre = t.mp.createPreapproval({ external_reference: TEST_USER_ID, status: "authorized" });
+    t.db.seed("subscriptions", makeSubscriptionRow({ status: "active", plan: "monthly", mp_subscription_id: oldPre.id }, t.now()));
+
+    const res = await POST(buildCheckoutRequest({ plan: "yearly" }));
+    expect(res.status).toBe(200);
+
+    // La preapproval vieja quedo cancelada ANTES de crear la nueva.
+    const updateCalls = t.mp.callsTo("preapproval.update");
+    expect(updateCalls).toHaveLength(1);
+    expect((updateCalls[0].args as { id: string; body: { status: string } }).id).toBe(oldPre.id);
+    expect(t.mp.getPreapproval(oldPre.id)?.status).toBe("cancelled");
+    expect(t.mp.callsTo("preapproval.create")).toHaveLength(1);
+    // El cancel ocurre ANTES del create (orden real de las llamadas a MP).
+    expect(updateCalls[0].seq).toBeLessThan(t.mp.callsTo("preapproval.create")[0].seq);
+  });
+
+  it("si Mercado Pago rechaza la cancelación de la vieja, NO crea la nueva (evita el doble cobro)", async () => {
+    t.loginAs({ id: TEST_USER_ID });
+    const oldPre = t.mp.createPreapproval({ external_reference: TEST_USER_ID, status: "authorized" });
+    t.db.seed("subscriptions", makeSubscriptionRow({ status: "active", plan: "monthly", mp_subscription_id: oldPre.id }, t.now()));
+    t.mp.failNext("preapproval.update", 500);
+
+    const res = await POST(buildCheckoutRequest({ plan: "yearly" }));
+    expect(res.status).toBe(409);
+    expect(t.mp.callsTo("preapproval.create")).toHaveLength(0); // nunca se creo la nueva
+    expect(t.mp.getPreapproval(oldPre.id)?.status).toBe("authorized"); // la vieja sigue como estaba
+  });
+
+  it("una fila activa sin mp_subscription_id (alta manual del admin) no intenta cancelar nada en MP", async () => {
+    t.loginAs({ id: TEST_USER_ID });
+    t.db.seed("subscriptions", makeSubscriptionRow({ status: "active", plan: "monthly", mp_subscription_id: null }, t.now()));
+
+    const res = await POST(buildCheckoutRequest({ plan: "yearly" }));
+    expect(res.status).toBe(200);
+    expect(t.mp.callsTo("preapproval.update")).toHaveLength(0);
+    expect(t.mp.callsTo("preapproval.create")).toHaveLength(1);
+  });
+});

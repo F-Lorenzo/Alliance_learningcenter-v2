@@ -1,8 +1,9 @@
 import { ShieldCheck, LogOut } from "lucide-react";
 import { getCurrentUser } from "@/lib/queries";
-import { getAdminCurrentRole } from "@/lib/admin-queries";
+import { getAdminCurrentRole, getWebhookHealth } from "@/lib/admin-queries";
 import { logout } from "@/app/actions";
 import { AdminNav } from "./admin-nav";
+import { WebhookHealthBanner } from "./webhook-health-banner";
 
 const ROLE_LABEL: Record<string, string> = {
   super_admin: "Super Admin",
@@ -13,7 +14,11 @@ const ROLE_LABEL: Record<string, string> = {
 };
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const [user, role] = await Promise.all([getCurrentUser(), getAdminCurrentRole()]);
+  const [user, role, webhookHealth] = await Promise.all([
+    getCurrentUser(),
+    getAdminCurrentRole(),
+    getWebhookHealth(),
+  ]);
 
   return (
     <div className="min-h-screen flex bg-bg-primary">
@@ -58,6 +63,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
       {/* Main content */}
       <div className="flex-1 ml-60 min-h-screen flex flex-col">
+        <WebhookHealthBanner health={webhookHealth} />
         {children}
       </div>
     </div>

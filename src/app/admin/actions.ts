@@ -329,10 +329,15 @@ export async function toggleSubscription(
       }
     }
 
-    // Desactivar: marcar como cancelada
+    // Desactivar: marcar como cancelada Y cortar el acceso YA (current_period_end: null).
+    // A diferencia de cancelar desde la app o desde MP (que mantienen acceso hasta lo ya
+    // pagado — ver isSubscriptionActive), esta es una acción de admin que la UI le promete
+    // inmediata ("Perderá acceso al contenido de pago", ver toggle-subscription-button.tsx):
+    // no hay un período "ya pagado" que respetar detrás de un botón de soporte, y el admin
+    // espera que surta efecto al toque, no en la fecha que él mismo puso al activar.
     const { error } = await db
       .from("subscriptions")
-      .update({ status: "canceled" })
+      .update({ status: "canceled", current_period_end: null })
       .eq("user_id", userId)
       .in("status", ["active", "trialing"]);
 

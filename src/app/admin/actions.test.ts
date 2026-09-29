@@ -34,6 +34,22 @@ describe("toggleSubscription (panel admin)", () => {
     expect(t.db.dump("subscriptions")[0].status).toBe("canceled");
   });
 
+  it("desactivar corta el acceso DE INMEDIATO, aunque el período pagado/otorgado siga vigente (a diferencia de cancelar desde la app o MP)", async () => {
+    loginAsAdmin();
+    t.setNow("2025-01-01T00:00:00Z");
+    const future = new Date("2026-01-01T00:00:00Z"); // un año de acceso ya otorgado
+    t.db.seed("subscriptions", makeSubscriptionRow(
+      { user_id: TEST_USER_ID, mp_subscription_id: null, status: "active", current_period_end: future.toISOString() },
+      t.now()
+    ));
+
+    const result = await toggleSubscription(TEST_USER_ID, "active", "yearly");
+    expect(result.ok).toBe(true);
+    const row = t.db.dump("subscriptions")[0];
+    expect(row.status).toBe("canceled");
+    expect(row.current_period_end).toBeNull(); // cortado ya, no "hasta la fecha que quedó cargada"
+  });
+
   it("si Mercado Pago rechaza la cancelación, la baja en la base igual se aplica pero se avisa con `warning`", async () => {
     loginAsAdmin();
     const pre = t.mp.createPreapproval({ external_reference: TEST_USER_ID, status: "authorized" });

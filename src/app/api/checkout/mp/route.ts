@@ -98,30 +98,59 @@ export async function POST(request: Request) {
     const plan = PLANS[planKey];
     if (!plan) return NextResponse.json({ error: "Plan inválido" }, { status: 400 });
 
-    // 2.b No permitir crear una segunda preapproval del MISMO plan mientras ya hay una vigente
-    // (activa, en gracia, o cancelada pero con acceso pagado hasta current_period_end): evita
-    // un doble cobro accidental. Cambiar de plan (monthly -> yearly o viceversa) sigue permitido.
+    const client = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN });
+    const preApproval = new PreApproval(client);
+
+    // 2.b Mismo plan ya vigente (activo, en gracia, o cancelado pero con acceso pagado hasta
+    // current_period_end): no crear una segunda preapproval — evita un doble cobro accidental.
     // Si esta verificación falla (DB caída), no bloqueamos el checkout por eso — mismo criterio
     // que el resto de esta ruta (rate limit y cupón fallan "abierto", nunca "cerrado").
+    //
+    // 2.c Cambio de plan (mensual <-> anual) con una suscripción de OTRO plan vigente: en vez de
+    // dejar las dos cobrando en paralelo (lo que obligaba al cliente a acordarse de cancelar la
+    // vieja a mano), se cancela la preapproval anterior en Mercado Pago ANTES de crear la nueva.
+    // Si esa cancelación falla, no seguimos: crear la nueva sin haber cancelado la vieja
+    // significa doble cobro real, así que acá sí se bloquea el checkout (a diferencia de 2.b,
+    // que solo depende de una lectura).
     try {
       const db = createAdminClient();
       const { data: rows } = await db
         .from("subscriptions")
-        .select("status, plan, current_period_end")
+        .select("status, plan, current_period_end, mp_subscription_id")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
         .limit(10);
 
-      const alreadySubscribedToSamePlan = (rows ?? []).some(
-        (r) =>
-          r.plan === planKey &&
-          isSubscriptionActive(r.status as string, r.current_period_end ? new Date(r.current_period_end) : null)
+      const activeRows = (rows ?? []).filter((r) =>
+        isSubscriptionActive(r.status as string, r.current_period_end ? new Date(r.current_period_end) : null)
       );
-      if (alreadySubscribedToSamePlan) {
+
+      const samePlanActive = activeRows.find((r) => r.plan === planKey);
+      if (samePlanActive) {
         return NextResponse.json(
           { error: "Ya tenés una suscripción activa. Revisá el estado en \"Mi cuenta\"." },
           { status: 409 }
         );
+      }
+
+      const otherPlanActive = activeRows.find((r) => r.plan !== planKey);
+      if (otherPlanActive?.mp_subscription_id) {
+        try {
+          await preApproval.update({
+            id: otherPlanActive.mp_subscription_id as string,
+            body: { status: "cancelled" },
+          });
+          console.log("[checkout/mp] Preapproval anterior cancelada por cambio de plan:", otherPlanActive.mp_subscription_id);
+        } catch (cancelErr) {
+          console.error("[checkout/mp] No se pudo cancelar el plan anterior al cambiar de plan:", serializeError(cancelErr));
+          return NextResponse.json(
+            {
+              error:
+                "No pudimos cancelar tu plan actual para cambiarlo. Cancelalo primero desde \"Mi cuenta\" o escribinos por WhatsApp.",
+            },
+            { status: 409 }
+          );
+        }
       }
     } catch (err) {
       console.error("[checkout/mp] No se pudo verificar suscripciones existentes:", serializeError(err));
@@ -140,9 +169,6 @@ export async function POST(request: Request) {
     }
 
     // 4. Crear preapproval en MP
-    const client = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN });
-    const preApproval = new PreApproval(client);
-
     const origin =
       request.headers.get("origin") ??
       process.env.NEXT_PUBLIC_SITE_URL ??

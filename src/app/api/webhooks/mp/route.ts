@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { MercadoPagoConfig, PreApproval, Payment, Invoice } from "mercadopago";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createHmac, timingSafeEqual } from "crypto";
+import { timingSafeEqual } from "crypto";
 import {
   parseSafeDate,
   mapMpStatus,
@@ -9,6 +9,7 @@ import {
   frequencyFromPlan,
   calculateNewPeriodEnd,
 } from "@/lib/subscription-logic";
+import { buildMpWebhookManifest, signMpWebhookManifest } from "@/lib/mp-webhook-signature";
 
 /**
  * Verifica la firma HMAC de MP.
@@ -49,10 +50,8 @@ function verifySignature(
     return false;
   }
 
-  const manifest = dataId
-    ? `id:${dataId};request-id:${xRequestId};ts:${ts};`
-    : `request-id:${xRequestId};ts:${ts};`;
-  const hash = createHmac("sha256", secret).update(manifest).digest("hex");
+  const manifest = buildMpWebhookManifest(dataId, xRequestId, ts);
+  const hash = signMpWebhookManifest(secret, manifest);
 
   const hashBuf = Buffer.from(hash, "hex");
   const v1Buf = Buffer.from(v1, "hex");
