@@ -4,7 +4,7 @@ import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
 import ffprobeInstaller from "@ffprobe-installer/ffprobe";
 import ffmpeg from "fluent-ffmpeg";
 import { readFileSync, statSync, readdirSync } from "fs";
-import { join, extname, basename, relative } from "path";
+import { join, extname, basename, relative, dirname, sep } from "path";
 
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 ffmpeg.setFfprobePath(ffprobeInstaller.path);
@@ -31,6 +31,20 @@ function parseFilename(filename) {
     return { sortKey: parseFloat(match[1]), title: match[2].trim() };
   }
   return { sortKey: Infinity, title: withoutExt.trim() };
+}
+
+// Si el video está en una subcarpeta directa de assetsDir (ej. "1. Cómo llegar/foo.mov"),
+// esa subcarpeta se usa como section_title (con el mismo parseo de prefijo numérico para
+// el orden). Videos sueltos en la raíz de assetsDir no tienen sección.
+function parseSectionFromPath(assetsDir, filePath) {
+  const relDir = relative(assetsDir, dirname(filePath));
+  if (!relDir || relDir === ".") return { sectionOrder: Infinity, sectionTitle: null };
+  const firstSegment = relDir.split(sep)[0];
+  const match = firstSegment.match(/^(\d+(?:\.\d+)?)\s*[-.]?\s*(.+)$/);
+  if (match) {
+    return { sectionOrder: parseFloat(match[1]), sectionTitle: match[2].trim() };
+  }
+  return { sectionOrder: Infinity, sectionTitle: firstSegment.trim() };
 }
 
 function findVideoFiles(dir) {
@@ -136,9 +150,14 @@ export async function uploadModule(config) {
     .map((filePath) => {
       const filename = basename(filePath);
       const { sortKey, title: parsedTitle } = parseFilename(filename);
-      return { filePath, filename, sortKey, title: parsedTitle };
+      const { sectionOrder, sectionTitle } = parseSectionFromPath(assetsDir, filePath);
+      return { filePath, filename, sortKey, title: parsedTitle, sectionOrder, sectionTitle };
     })
-    .sort((a, b) => a.sortKey - b.sortKey || a.filename.localeCompare(b.filename))
+    .sort((a, b) =>
+      a.sectionOrder - b.sectionOrder ||
+      a.sortKey - b.sortKey ||
+      a.filename.localeCompare(b.filename)
+    )
     .map((lesson, index) => ({ ...lesson, order: index + 1 }));
 
   console.log(`\n📦 Módulo: ${title} (${slug})`);
@@ -146,10 +165,15 @@ export async function uploadModule(config) {
   console.log(`🗂️  Carpeta R2: ${courseFolder}/`);
   console.log(`🏷️  Categoría: ${categorySlug}`);
   console.log(`${DRY_RUN ? "🧪 DRY RUN — no se sube ni se escribe nada" : "🚀 Modo real — se sube y se escribe en producción"}\n`);
-  console.log(`📋 ${lessons.length} lecciones detectadas (orden por nombre de archivo):\n`);
+  console.log(`📋 ${lessons.length} lecciones detectadas (orden por subcarpeta y nombre de archivo):\n`);
+  let lastSection;
   for (const l of lessons) {
+    if (l.sectionTitle !== lastSection) {
+      console.log(`  — ${l.sectionTitle ?? "(sin sección)"} —`);
+      lastSection = l.sectionTitle;
+    }
     const size = formatBytes(statSync(l.filePath).size);
-    console.log(`  ${String(l.order).padStart(2, "0")}. ${l.title}  [${relative(assetsDir, l.filePath)}, ${size}]`);
+    console.log(`    ${String(l.order).padStart(2, "0")}. ${l.title}  [${relative(assetsDir, l.filePath)}, ${size}]`);
   }
   console.log();
 
@@ -234,6 +258,7 @@ export async function uploadModule(config) {
       is_free: firstLessonFree && l.order === 1,
       video_url: l.videoKey,
       duration: l.duration,
+      section_title: l.sectionTitle,
     });
 
     if (error) {
