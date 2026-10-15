@@ -33,6 +33,8 @@ function transformCourse(row: Record<string, unknown>): Course {
             sort_order: l.sort_order as number,
             video_url: (l.video_url as string | null) ?? null,
             section_title: (l.section_title as string | null) ?? null,
+            related_label: (l.related_label as string | null) ?? null,
+            related_course_slug: (l.related_course_slug as string | null) ?? null,
           } satisfies Lesson))
       : undefined,
   };
@@ -43,7 +45,7 @@ const COURSE_SELECT = `
   total_duration, is_free, is_published, is_new, is_featured, created_at,
   instructor:instructors(id, name, belt, photo_url, bio, achievements),
   course_categories(category:categories(name)),
-  lessons(id, slug, title, duration, is_free, sort_order, section_title)
+  lessons(id, slug, title, duration, is_free, sort_order, section_title, related_label, related_course_slug)
 ` as const;
 
 export async function getCategories(): Promise<Category[]> {

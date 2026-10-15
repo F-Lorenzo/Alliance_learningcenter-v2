@@ -80,6 +80,17 @@ function formatBytes(bytes) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+function normalize(text) {
+  return text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}
+
+// Devuelve el primer relatedLink cuyo `titleIncludes` aparece en el título de la lección
+// (comparación sin acentos ni mayúsculas), o null si ninguno matchea.
+function matchRelatedLink(lessonTitle, relatedLinks) {
+  const normalizedTitle = normalize(lessonTitle);
+  return relatedLinks.find((rl) => normalizedTitle.includes(normalize(rl.titleIncludes))) ?? null;
+}
+
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 /**
@@ -95,6 +106,10 @@ function formatBytes(bytes) {
  * @param {string} config.categorySlug    Slug de la categoría (debe existir en `categories`)
  * @param {boolean} [config.isFree=false] Si el curso completo es gratis
  * @param {boolean} [config.firstLessonFree=true] Si la primera lección es gratis (preview)
+ * @param {Array<{titleIncludes: string, label: string, slug: string|null}>} [config.relatedLinks]
+ *   Links hacia otros sistemas. Se aplica a la primera lección cuyo título (sin
+ *   acentos, sin mayúsculas) contenga `titleIncludes`. Si `slug` es null, se
+ *   guarda solo el label (la UI lo muestra como texto "próximamente", sin link).
  */
 export async function uploadModule(config) {
   const {
@@ -106,6 +121,7 @@ export async function uploadModule(config) {
     categorySlug,
     isFree = false,
     firstLessonFree = true,
+    relatedLinks = [],
   } = config;
 
   const DRY_RUN = process.env.DRY_RUN === "1" || process.env.DRY_RUN === "true";
@@ -158,7 +174,8 @@ export async function uploadModule(config) {
       a.sortKey - b.sortKey ||
       a.filename.localeCompare(b.filename)
     )
-    .map((lesson, index) => ({ ...lesson, order: index + 1 }));
+    .map((lesson, index) => ({ ...lesson, order: index + 1 }))
+    .map((lesson) => ({ ...lesson, relatedLink: matchRelatedLink(lesson.title, relatedLinks) }));
 
   console.log(`\n📦 Módulo: ${title} (${slug})`);
   console.log(`📁 Carpeta local: ${assetsDir}`);
@@ -174,6 +191,10 @@ export async function uploadModule(config) {
     }
     const size = formatBytes(statSync(l.filePath).size);
     console.log(`    ${String(l.order).padStart(2, "0")}. ${l.title}  [${relative(assetsDir, l.filePath)}, ${size}]`);
+    if (l.relatedLink) {
+      const dest = l.relatedLink.slug ? `→ /modulos/${l.relatedLink.slug}` : "(sin destino todavía — se muestra como texto)";
+      console.log(`        🔗 ${l.relatedLink.label} ${dest}`);
+    }
   }
   console.log();
 
@@ -259,6 +280,8 @@ export async function uploadModule(config) {
       video_url: l.videoKey,
       duration: l.duration,
       section_title: l.sectionTitle,
+      related_label: l.relatedLink?.label ?? null,
+      related_course_slug: l.relatedLink?.slug ?? null,
     });
 
     if (error) {

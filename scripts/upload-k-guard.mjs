@@ -25,14 +25,14 @@ await uploadModule({
   categorySlug: "guardia", // mismo criterio usado para x-guard
   isFree: false,
   firstLessonFree: true,
+  // Links a otros sistemas (ver /modulos/[slug]/page.tsx — se muestran como
+  // texto azul subrayado si hay slug, o como texto simple "(próximamente)"
+  // si todavía no existe el módulo destino). Matchea por substring en el
+  // título ya parseado de la lección — ajustar `titleIncludes` si el nombre
+  // real del archivo usa otra palabra (ej. "Pasaje a X Guard" en vez de
+  // "X Guard").
+  relatedLinks: [
+    { titleIncludes: "X Guard", label: "Ver sistema X Guard", slug: "x-guard" },
+    { titleIncludes: "Baby Bolo", label: "Ver sistema Baby Bolo / Crab Ride", slug: null }, // todavía no existe ese módulo
+  ],
 });
-
-// NOTA sobre los links a otros sistemas del esquema original:
-//   - "K Guard → X Guard" (Ver sistema X Guard): el curso x-guard ya existe
-//     en producción, pero hoy no hay ningún campo ni UI para renderizar un
-//     link clickeable dentro de una lección — es una función nueva a construir.
-//   - "K Guard → Matrix → Baby Bolo" (Ver sistema Baby Bolo / Crab Ride): ese
-//     módulo todavía no existe en la plataforma, así que ese link no tendría
-//     destino aunque se implemente la función.
-// Este script sube el contenido y arma las secciones; los links quedan
-// pendientes de una decisión de producto (ver mensaje en el chat).

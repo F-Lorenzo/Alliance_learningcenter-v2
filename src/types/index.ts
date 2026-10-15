@@ -25,6 +25,8 @@ export interface Lesson {
   sort_order: number;
   video_url?: string | null;
   section_title?: string | null;
+  related_label?: string | null;        // ej. "Ver sistema X Guard"
+  related_course_slug?: string | null;  // slug del curso al que enlaza; null si todavía no existe esa página
 }
 
 export interface Instructor {

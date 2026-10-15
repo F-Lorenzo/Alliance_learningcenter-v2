@@ -209,6 +209,22 @@ export default async function ModuloPage({ params }: Props) {
                           )}
                         </div>
                       </Link>
+                      {lesson.related_label && (
+                        <div className="pl-14 pr-4 pb-2.5 -mt-0.5 bg-bg-primary border-b border-border-default">
+                          {lesson.related_course_slug ? (
+                            <Link
+                              href={`/modulos/${lesson.related_course_slug}`}
+                              className="text-xs text-blue-400 underline underline-offset-2 hover:text-blue-300 transition-colors"
+                            >
+                              {lesson.related_label}
+                            </Link>
+                          ) : (
+                            <span className="text-xs text-text-tertiary italic">
+                              {lesson.related_label} (próximamente)
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
